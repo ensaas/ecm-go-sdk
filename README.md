@@ -10,6 +10,7 @@
 4. modify the go.mod of your project, add the  following two lines:
 
    require "ecm-sdk-go" v0.0.0
+
    replace "ecm-sdk-go" => " gopath/ecm-sdk-go"
 
    
