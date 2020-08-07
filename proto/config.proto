@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package proto;
+
+message Config {
+    string version = 1;
+    string public = 2;
+    string private = 3;
+    string publicVersion = 4;
+    string format = 5;
+    string publicFormat = 6;
+    string services = 7;
+}
+
+message ConfigVersion {
+    string version = 1;
+    string ServiceName = 2;
+    string GroupId = 3;
+    string publicVersion = 4;
+}
+
+message PublishConfigRequest {
+    string ServiceName = 1;
+    string GroupId = 2;
+    string private = 3;
+    string format = 4;
+    string TagName = 5;
+    string Description = 6;
+}
+
+message Response {
+    string result = 1;
+}
+
+message PutConfigRequest {
+    string ServiceName = 1;
+    string GroupId = 2;
+    string HeartBeatPackage = 3;
+}
+
+message UpdateConfigMessage {
+    string key = 1;
+    string value = 2;
+}
+
+message PutConfigResponse {
+    Config config = 1;
+    UpdateConfigMessage updateConfigMessage = 2;
+}
+
+service ConfigService {
+    rpc GetConfig(ConfigVersion) returns (Config){};
+    rpc ListenConfig(stream ConfigVersion) returns (stream Config){};
+    rpc PublishConfig(PublishConfigRequest) returns (Response){};
+    rpc PutConfig(stream PutConfigRequest) returns (stream PutConfigResponse){};
+    rpc DeleteMessage(UpdateConfigMessage) returns (Response){};
+}

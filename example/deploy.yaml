@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo
+  namespace: ensaasmesh
+  labels:
+    app: demo
+  annotations:
+    registry: ewkibmFtZSI6ICJkY2NzIiwNCgkic3Vic2NyaXB0aW9uSWQiOiAiNjcxNTFmMzYyNjZlMjAwZmFiNDljOGY3ZDQzNjQzYTMiLA0KCSJzZXJ2aWNlSW5zdGFuY2VJZCI6ICI2NzE1MWYzNjI2NmUyMDBmYWI0OWM4ZjdkNDM2NDNhMyIsDQoJImRhdGFjZW50ZXIiOiAiYm0iLA0KCSJjbHVzdGVyIjogImVuc2FhcyIsDQoJIm5hbWVzcGFjZSI6ICJlbnNhYXMtc2VydmljZSIsDQoJImluc3RhbmNlcyI6IFsNCgkJew0KCQkJInNlcnZpY2VOYW1lIjogImRjY3MtODA4MCIsDQoJCQkicG9ydCI6IDgwODAsDQoJCQkicHJvdG9jb2wiOiAiaHR0cDEiDQoJCX0sDQoJCXsNCgkJCSJzZXJ2aWNlTmFtZSI6ICJkY2NzLTkwOTAiLA0KCQkJInBvcnQiOiA5MDkwLA0KCQkJInByb3RvY29sIjogImh0dHAyIg0KCQl9DQoJXQ0KfQ==
+    version: v1
+    mainversion: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      initContainers:
+      - name: iptables
+        image: harbor-axa.wise-paas.com.cn/juanli/iptable:0.0.0.4
+        imagePullPolicy: Always
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          runAsGroup: 0
+        env:
+        - name: namespace
+          value: ensaasmesh
+        - name: mode
+          value: production
+      containers:
+      - name: ensaasdp
+        image: harbor-axa.wise-paas.com.cn/juanli/ensaasdp:0.0.0.4
+        imagePullPolicy: Always
+        securityContext:
+          runAsUser: 1337
+          runAsGroup: 1337
+        resources:
+          limits:
+            cpu: 100m
+            memory: 256Mi
+            ephemeral-storage: 256Mi
+        volumeMounts:
+        - mountPath: /mosn
+          name: cache-volume
+        - mountPath: /home/admin/mosn/conf
+          name: cache-volume
+        - mountPath: /config/cache
+          name: cache-volume
+        env:
+        - name: server_address
+          value: 172.21.84.12
+        - name: server_port
+          value: "8088"
+        - name: discover_server
+          value: 172.21.84.12
+        - name: discover_port
+          value: "5678"
+        - name: "config_server"
+          value: 172.21.84.12
+        - name: "config_port"
+          value: "9000"
+        - name: mode
+          value: production
+        - name: skywalking_host
+          value: 127.0.0.1
+        ports:
+        - containerPort: 8081
+      - name: demo
+        image: harbor-axa.wise-paas.com.cn/juanli/demo:0.0.0.4
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+            ephemeral-storage: 256Mi
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - mountPath: /mosn
+          name: cache-volume
+      imagePullSecrets:
+      - name: registrysecret
+      volumes:
+      - emptyDir: {}
+        name: cache-volume
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo
+  namespace: ensaasmesh
+spec:
+  selector:
+    app: demo
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: demo
+  namespace: ensaasmesh
+spec:
+  rules:
+  - host: api.demo.ews001.en.internal
+    http:
+      paths:
+      - backend:
+          serviceName: demo
+          servicePort: 80
+        path: /
+
