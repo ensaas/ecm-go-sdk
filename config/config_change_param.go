@@ -1,7 +1,7 @@
 package config
 
 type ListenConfigParam struct {
-	ServiceName string
-	GroupId     string
-	OnChange    func(object, key, value string)
+	AppGroupName string
+	ConfigName   string
+	OnChange     func(object, key, value string)
 }

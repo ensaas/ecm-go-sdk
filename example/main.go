@@ -8,27 +8,34 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
 
 var (
-	serviceName = os.Getenv(constants.ServiceNameEnvVar)
-	groupId     = "default"
+	appGroupName = os.Getenv(constants.AppGroupNameEnvVar)
+	configName   = os.Getenv(constants.ConfigNameEnvVar)
 )
 
-var clientConfigTest = config.ClientConfig{
-	CachePath:            "cache",
-	ListenInterval:       10,
-	UpdateEnvWhenChanged: true,
-}
+func createConfigClientTest() client.ConfigClient {
+	var clientConfigTest = config.ClientConfig{
+		CachePath:            "cache",
+		ListenInterval:       10,
+		UpdateEnvWhenChanged: true,
+	}
 
-var serverConfigTest = config.ServerConfig{
-	IpAddr: os.Getenv(constants.ConfigServerEnvVar),
-	Port:   9000,
-}
+	port, err := strconv.ParseUint(os.Getenv(constants.ConfigPortEnvVar), 10, 0)
+	if err != nil {
+		fmt.Println("The config port of ensaas cp is invalid. errMessage = " + err.Error())
+		return client.ConfigClient{}
+	}
 
-func cretateConfigClientTest() client.ConfigClient {
+	var serverConfigTest = config.ServerConfig{
+		IpAddr: os.Getenv(constants.ConfigServerEnvVar),
+		Port:   port,
+	}
+
 	conf := config.Config{}
 	conf.SetServerConfig(serverConfigTest)
 	conf.SetClientConfig(clientConfigTest)
@@ -44,10 +51,10 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
-	c := cretateConfigClientTest()
+	c := createConfigClientTest()
 	defer c.DeleteConfigClient()
 
-	content, err := c.GetConfig(serviceName, groupId)
+	content, err := c.GetConfig(appGroupName, configName)
 	if err != nil {
 		fmt.Println("get config fail. errMessage = " + err.Error())
 	}
@@ -58,7 +65,7 @@ func main() {
 	fmt.Println("raw config is:")
 	fmt.Println(string(configBytes))
 
-	keyValueContent, err := c.GetKeyValueConfig(serviceName, groupId)
+	keyValueContent, err := c.GetKeyValueConfig(appGroupName, configName)
 	if err != nil {
 		fmt.Println("get config fail. errMessage = " + err.Error())
 	}
@@ -70,8 +77,8 @@ func main() {
 	fmt.Println(string(keyValueBytes))
 
 	c.ListenConfig(config.ListenConfigParam{
-		ServiceName: serviceName,
-		GroupId:     groupId,
+		AppGroupName: appGroupName,
+		ConfigName:   configName,
 		OnChange: func(object, key, value string) {
 			fmt.Println("config changed object:" + object + ", key:" + key + ", value:" + fmt.Sprint(value))
 		},
@@ -79,12 +86,12 @@ func main() {
 
 	// publish config
 	publishConfig := &configproto.PublishConfigRequest{
-		ServiceName: serviceName,
-		GroupId:     groupId,
-		Private:     "key1: val1\nfield:\n  key2: val2\n  key3: val3\nkey4: val4\n",
-		TagName:     fmt.Sprintf("v0.0.1-sdk-%s", time.Now().Format("2006/01/02/15:04:05")),
-		Format:      "yaml",
-		Description: "test",
+		AppGroupName: appGroupName,
+		ConfigName:   configName,
+		Private:      "key1: val1\nfield:\n  key2: val2\n  key3: val3\nkey4: val4\n",
+		TagName:      fmt.Sprintf("v0.0.1-sdk-%s", time.Now().Format("2006/01/02/15:04:05")),
+		Format:       "yaml",
+		Description:  "test",
 	}
 
 	err = c.PublishConfig(publishConfig)

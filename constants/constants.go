@@ -3,12 +3,11 @@ package constants
 const (
 	InitWaitTimeout                   = 10 // second
 	BackendRegisterInfoPath           = "/mosn/register"
-	DefaultGroupId                    = "default"
 	EnvPrefix                         = "ENSAASMESH_"
 	ConfigServerEnvVar                = EnvPrefix + "CONFIG_SERVER"
 	ConfigPortEnvVar                  = EnvPrefix + "CONFIG_PORT"
-	ServiceNameEnvVar                 = EnvPrefix + "SERVICE_NAME"
-	GroupIdEnvVar                     = EnvPrefix + "GROUP_ID"
+	AppGroupNameEnvVar                = EnvPrefix + "APPGROUP_NAME"
+	ConfigNameEnvVar                  = EnvPrefix + "CONFIG_NAME"
 	CachePathEnvVar                   = EnvPrefix + "CACHE_PATH"
 	UpdateEnvWhenChangedEnvVar        = EnvPrefix + "UPDATE_ENV_WHEN_CHANGED"
 	NotLoadCacheAtStartEnvVar         = EnvPrefix + "NOTLOAD_CACHE_AT_START"

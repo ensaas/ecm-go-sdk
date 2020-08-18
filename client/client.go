@@ -2,7 +2,6 @@ package client
 
 import (
 	"ecm-sdk-go/config"
-	"ecm-sdk-go/constants"
 	configproto "ecm-sdk-go/proto"
 	"ecm-sdk-go/types"
 	"ecm-sdk-go/utils"
@@ -51,29 +50,29 @@ func (client *ConfigClient) DeleteConfigClient() {
 	}
 }
 
-func (client *ConfigClient) GetConfig(serviceName, groupId string) (*types.Config, error) {
+func (client *ConfigClient) GetConfig(appGroupName, configName string) (*types.Config, error) {
 	// check service name and group id
-	if serviceName == "" {
-		serviceName = utils.GetDefaultServiceName()
-		if serviceName == "" {
-			return nil, errors.New("[client.GetConfig] the service name can not be empty")
+	if appGroupName == "" {
+		appGroupName = utils.GetDefaultAppGroupName()
+		if appGroupName == "" {
+			return nil, errors.New("[client.GetConfig] the app group name can not be empty")
 		}
 	}
 
-	if groupId == "" {
-		groupId = utils.GetDefaultGroupId()
-		if groupId == "" {
-			groupId = constants.DefaultGroupId
+	if configName == "" {
+		configName = utils.GetDefaultConfigName()
+		if configName == "" {
+			return nil, errors.New("[client.GetConfig] the config name can not be empty")
 		}
 	}
 
-	serviceKey := getServiceConfigKey(serviceName, groupId)
+	serviceKey := getServiceConfigKey(appGroupName, configName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
 			client.serviceConfig[serviceKey] = &configproto.Config{}
 		}
-		err := client.grpcClient.getConfig(serviceName, groupId, client.serviceConfig[serviceKey])
+		err := client.grpcClient.getConfig(appGroupName, configName, client.serviceConfig[serviceKey])
 		if err != nil {
 			return nil, err
 		}
@@ -101,29 +100,29 @@ func (client *ConfigClient) GetConfig(serviceName, groupId string) (*types.Confi
 	return config, nil
 }
 
-func (client *ConfigClient) GetKeyValueConfig(serviceName, groupId string) (*types.KeyValueConfig, error) {
+func (client *ConfigClient) GetKeyValueConfig(appGroupName, configName string) (*types.KeyValueConfig, error) {
 	// check service name and group id
-	if serviceName == "" {
-		serviceName = utils.GetDefaultServiceName()
-		if serviceName == "" {
-			return nil, errors.New("[client.GetConfig] the service name can not be empty")
+	if appGroupName == "" {
+		appGroupName = utils.GetDefaultAppGroupName()
+		if appGroupName == "" {
+			return nil, errors.New("[client.GetKeyValueConfig] the app group name can not be empty")
 		}
 	}
 
-	if groupId == "" {
-		groupId = utils.GetDefaultGroupId()
-		if groupId == "" {
-			groupId = constants.DefaultGroupId
+	if configName == "" {
+		configName = utils.GetDefaultConfigName()
+		if configName == "" {
+			return nil, errors.New("[client.GetKeyValueConfig] the config name can not be empty")
 		}
 	}
 
-	serviceKey := getServiceConfigKey(serviceName, groupId)
+	serviceKey := getServiceConfigKey(appGroupName, configName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
 			client.serviceConfig[serviceKey] = &configproto.Config{}
 		}
-		err := client.grpcClient.getConfig(serviceName, groupId, client.serviceConfig[serviceKey])
+		err := client.grpcClient.getConfig(appGroupName, configName, client.serviceConfig[serviceKey])
 		if err != nil {
 			return nil, err
 		}
@@ -134,31 +133,31 @@ func (client *ConfigClient) GetKeyValueConfig(serviceName, groupId string) (*typ
 	return getKeyValueConfig(client.serviceConfig[serviceKey]), nil
 }
 
-func (client *ConfigClient) GetPublicConfig(serviceName, groupId string) (string, error) {
+func (client *ConfigClient) GetPublicConfig(appGroupName, configName string) (string, error) {
 	// check service name and group id
-	if serviceName == "" {
-		serviceName = utils.GetDefaultServiceName()
-		if serviceName == "" {
-			return "", errors.New("[client.GetPublicConfig] the service name can not be empty")
+	if appGroupName == "" {
+		appGroupName = utils.GetDefaultAppGroupName()
+		if appGroupName == "" {
+			return "", errors.New("[client.GetPublicConfig] the app group name can not be empty")
 		}
 	}
 
-	if groupId == "" {
-		groupId = utils.GetDefaultGroupId()
-		if groupId == "" {
-			groupId = constants.DefaultGroupId
+	if configName == "" {
+		configName = utils.GetDefaultConfigName()
+		if configName == "" {
+			return "", errors.New("[client.GetPublicConfig] the config name can not be empty")
 		}
 	}
 
 	var public string
-	serviceKey := getServiceConfigKey(serviceName, groupId)
+	serviceKey := getServiceConfigKey(appGroupName, configName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
 			client.serviceConfig[serviceKey] = &configproto.Config{}
 		}
 
-		err := client.grpcClient.getConfig(serviceName, groupId, client.serviceConfig[serviceKey])
+		err := client.grpcClient.getConfig(appGroupName, configName, client.serviceConfig[serviceKey])
 		if err != nil {
 			return "", err
 		}
@@ -170,30 +169,30 @@ func (client *ConfigClient) GetPublicConfig(serviceName, groupId string) (string
 	return public, nil
 }
 
-func (client *ConfigClient) GetPrivateConfig(serviceName, groupId string) (string, error) {
+func (client *ConfigClient) GetPrivateConfig(appGroupName, configName string) (string, error) {
 	// check service name and group id
-	if serviceName == "" {
-		serviceName = utils.GetDefaultServiceName()
-		if serviceName == "" {
-			return "", errors.New("[client.GetPrivateConfig] the service name can not be empty")
+	if appGroupName == "" {
+		appGroupName = utils.GetDefaultAppGroupName()
+		if appGroupName == "" {
+			return "", errors.New("[client.GetPrivateConfig] the app group name can not be empty")
 		}
 	}
 
-	if groupId == "" {
-		groupId = utils.GetDefaultGroupId()
-		if groupId == "" {
-			groupId = constants.DefaultGroupId
+	if configName == "" {
+		configName = utils.GetDefaultConfigName()
+		if configName == "" {
+			return "", errors.New("[client.GetPrivateConfig] the config name can not be empty")
 		}
 	}
 
 	var private string
-	serviceKey := getServiceConfigKey(serviceName, groupId)
+	serviceKey := getServiceConfigKey(appGroupName, configName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
 			client.serviceConfig[serviceKey] = &configproto.Config{}
 		}
-		err := client.grpcClient.getConfig(serviceName, groupId, client.serviceConfig[serviceKey])
+		err := client.grpcClient.getConfig(appGroupName, configName, client.serviceConfig[serviceKey])
 		if err != nil {
 			return "", err
 		}
@@ -205,30 +204,30 @@ func (client *ConfigClient) GetPrivateConfig(serviceName, groupId string) (strin
 	return private, nil
 }
 
-func (client *ConfigClient) GetServiceAddress(serviceName, groupId, service string) (map[string]*types.ServiceAddress, error) {
+func (client *ConfigClient) GetServiceAddress(appGroupName, configName, service string) (map[string]*types.ServiceAddress, error) {
 	// check service name and group id
-	if serviceName == "" {
-		serviceName = utils.GetDefaultServiceName()
-		if serviceName == "" {
-			return nil, errors.New("[client.GetServiceAddress] the service name can not be empty")
+	if appGroupName == "" {
+		appGroupName = utils.GetDefaultAppGroupName()
+		if appGroupName == "" {
+			return nil, errors.New("[client.GetServiceAddress] the app group name can not be empty")
 		}
 	}
 
-	if groupId == "" {
-		groupId = utils.GetDefaultGroupId()
-		if groupId == "" {
-			groupId = constants.DefaultGroupId
+	if configName == "" {
+		configName = utils.GetDefaultConfigName()
+		if configName == "" {
+			return nil, errors.New("[client.GetServiceAddress] the config name can not be empty")
 		}
 	}
 
 	var serviceAddress map[string]*types.ServiceAddress
-	serviceKey := getServiceConfigKey(serviceName, groupId)
+	serviceKey := getServiceConfigKey(appGroupName, configName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
 			client.serviceConfig[serviceKey] = &configproto.Config{}
 		}
-		err := client.grpcClient.getConfig(serviceName, groupId, client.serviceConfig[serviceKey])
+		err := client.grpcClient.getConfig(appGroupName, configName, client.serviceConfig[serviceKey])
 		if err != nil {
 			return nil, err
 		}
@@ -255,17 +254,17 @@ func (client *ConfigClient) GetServiceAddress(serviceName, groupId, service stri
 func (client *ConfigClient) PublishConfig(publishConfigRequest *configproto.PublishConfigRequest) error {
 
 	// check service name and group id
-	if publishConfigRequest.ServiceName == "" {
-		publishConfigRequest.ServiceName = utils.GetDefaultServiceName()
-		if publishConfigRequest.ServiceName == "" {
-			return errors.New("[client.PublishConfig] the service name can not be empty")
+	if publishConfigRequest.AppGroupName == "" {
+		publishConfigRequest.AppGroupName = utils.GetDefaultAppGroupName()
+		if publishConfigRequest.AppGroupName == "" {
+			return errors.New("[client.PublishConfig] the app group name can not be empty")
 		}
 	}
 
-	if publishConfigRequest.GroupId == "" {
-		publishConfigRequest.GroupId = utils.GetDefaultGroupId()
-		if publishConfigRequest.GroupId == "" {
-			publishConfigRequest.GroupId = constants.DefaultGroupId
+	if publishConfigRequest.ConfigName == "" {
+		publishConfigRequest.ConfigName = utils.GetDefaultConfigName()
+		if publishConfigRequest.ConfigName == "" {
+			return errors.New("[client.PublishConfig] the config name can not be empty")
 		}
 	}
 	if client.grpcClient != nil {
@@ -283,21 +282,21 @@ func (client *ConfigClient) PublishConfig(publishConfigRequest *configproto.Publ
 func (client *ConfigClient) ListenConfig(param config.ListenConfigParam) error {
 
 	// check service name and group id
-	if param.ServiceName == "" {
-		param.ServiceName = utils.GetDefaultServiceName()
-		if param.ServiceName == "" {
-			return errors.New("[client.ListenChangedConfig] the service name can not be empty")
+	if param.AppGroupName == "" {
+		param.AppGroupName = utils.GetDefaultAppGroupName()
+		if param.AppGroupName == "" {
+			return errors.New("[client.ListenChangedConfig] the app group name can not be empty")
 		}
 	}
 
-	if param.GroupId == "" {
-		param.GroupId = utils.GetDefaultGroupId()
-		if param.GroupId == "" {
-			param.GroupId = constants.DefaultGroupId
+	if param.ConfigName == "" {
+		param.ConfigName = utils.GetDefaultConfigName()
+		if param.ConfigName == "" {
+			return errors.New("[client.ListenChangedConfig] the app group name can not be empty")
 		}
 	}
 
-	serviceKey := getServiceConfigKey(param.ServiceName, param.GroupId)
+	serviceKey := getServiceConfigKey(param.AppGroupName, param.ConfigName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {

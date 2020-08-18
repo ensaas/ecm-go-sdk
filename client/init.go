@@ -25,14 +25,11 @@ func init() {
 		return
 	}
 
-	serviceName := utils.GetDefaultServiceName()
-	groupId := utils.GetDefaultGroupId()
-	if groupId == "" {
-		groupId = constants.DefaultGroupId
-	}
+	appGroupName := utils.GetDefaultAppGroupName()
+	configName := utils.GetDefaultConfigName()
 
-	if groupId == "" || serviceName == "" {
-		log.Printf(fmt.Sprintf("[client.init] Warning the environment variables %s or %s is empty", constants.ServiceNameEnvVar, constants.GroupIdEnvVar))
+	if configName == "" || appGroupName == "" {
+		log.Printf(fmt.Sprintf("[client.init] Warning the environment variables %s or %s is empty", constants.AppGroupNameEnvVar, constants.ConfigNameEnvVar))
 		return
 	}
 
@@ -44,8 +41,8 @@ func init() {
 	}
 
 	param := &config.ListenConfigParam{
-		ServiceName: serviceName,
-		GroupId:     groupId,
+		AppGroupName: appGroupName,
+		ConfigName:   configName,
 	}
 
 	DefaultGrpcClient.listenConfig(&DefaultServiceConfig, param)

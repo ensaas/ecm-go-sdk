@@ -177,14 +177,14 @@ func (c *GrpcClient) closeStreamClient() {
 	c.cancel()
 }
 
-func (c *GrpcClient) getConfig(serviceName, groupId string, serviceConfig *configproto.Config) error {
+func (c *GrpcClient) getConfig(appGroupName, configName string, serviceConfig *configproto.Config) error {
 
 	// send rpc
 	c.serviceConfigMutex.RLock()
 	data, err := c.client.GetConfig(c.ctx, &configproto.ConfigVersion{
 		Version:       serviceConfig.Version,
-		ServiceName:   serviceName,
-		GroupId:       groupId,
+		AppGroupName:  appGroupName,
+		ConfigName:    configName,
 		PublicVersion: serviceConfig.PublicVersion,
 	})
 	c.serviceConfigMutex.RUnlock()
@@ -193,12 +193,12 @@ func (c *GrpcClient) getConfig(serviceName, groupId string, serviceConfig *confi
 		errStatus, _ := status.FromError(err)
 		if errStatus.Code() == codes.NotFound {
 			// write empty string to cache file
-			c.writeConfigToCache(serviceName, groupId, &configproto.Config{})
+			c.writeConfigToCache(appGroupName, configName, &configproto.Config{})
 			log.Printf("[client.getConfig] " + errStatus.Message())
 			return err
 		} else if errStatus.Code() == codes.Internal || errStatus.Code() == codes.Unavailable {
 			// get config from cache
-			data, err = c.readConfigFromCache(serviceName, groupId)
+			data, err = c.readConfigFromCache(appGroupName, configName)
 			if err != nil {
 				log.Printf("[ERROR] get config from cache  error:%s ", err.Error())
 				return errors.New("read config from both server and cache fail")
@@ -218,7 +218,7 @@ func (c *GrpcClient) getConfig(serviceName, groupId string, serviceConfig *confi
 		}
 
 		// write config to cache file
-		c.writeConfigToCache(serviceName, groupId, serviceConfig)
+		c.writeConfigToCache(appGroupName, configName, serviceConfig)
 		c.serviceConfigMutex.Unlock()
 	}
 
@@ -296,7 +296,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 
 					// write config to cache file
 					if param != nil {
-						c.writeConfigToCache(param.ServiceName, param.GroupId, serviceConfig)
+						c.writeConfigToCache(param.AppGroupName, param.ConfigName, serviceConfig)
 					}
 					c.serviceConfigMutex.Unlock()
 				}
@@ -312,8 +312,8 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 			c.serviceConfigMutex.RLock()
 			err := c.listenConfigClient.Send(&configproto.ConfigVersion{
 				Version:       serviceConfig.Version,
-				ServiceName:   param.ServiceName,
-				GroupId:       param.GroupId,
+				AppGroupName:  param.AppGroupName,
+				ConfigName:    param.ConfigName,
 				PublicVersion: serviceConfig.PublicVersion,
 			})
 			c.serviceConfigMutex.RUnlock()
@@ -343,8 +343,8 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 					c.serviceConfigMutex.RLock()
 					err := c.listenConfigClient.Send(&configproto.ConfigVersion{
 						Version:       serviceConfig.Version,
-						ServiceName:   param.ServiceName,
-						GroupId:       param.GroupId,
+						AppGroupName:  param.AppGroupName,
+						ConfigName:    param.ConfigName,
 						PublicVersion: serviceConfig.PublicVersion,
 					})
 					c.serviceConfigMutex.RUnlock()
@@ -368,8 +368,8 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 		c.chanCount++
 		go func() {
 			putConfigRequest := &configproto.PutConfigRequest{
-				ServiceName: param.ServiceName,
-				GroupId:     param.GroupId,
+				AppGroupName: param.AppGroupName,
+				ConfigName:   param.ConfigName,
 			}
 			err := c.putConfigClient.Send(putConfigRequest)
 			if err != nil {
@@ -400,8 +400,8 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 						continue
 					}
 					putConfigRequest := &configproto.PutConfigRequest{
-						ServiceName:      param.ServiceName,
-						GroupId:          param.GroupId,
+						AppGroupName:     param.AppGroupName,
+						ConfigName:       param.ConfigName,
 						HeartBeatPackage: constants.HeartBeatPackage,
 					}
 					err := putConfigClient.Send(putConfigRequest)
@@ -478,7 +478,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 
 					// write config to cache file
 					if param != nil {
-						c.writeConfigToCache(param.ServiceName, param.GroupId, serviceConfig)
+						c.writeConfigToCache(param.AppGroupName, param.ConfigName, serviceConfig)
 					}
 					c.serviceConfigMutex.Unlock()
 				}
@@ -645,14 +645,14 @@ func (c *GrpcClient) updateServiceConfig(serviceConfig, changedConfig *configpro
 	return nil
 }
 
-func (c *GrpcClient) writeConfigToCache(serviceName, groupId string, serviceConfig *configproto.Config) {
+func (c *GrpcClient) writeConfigToCache(appGroupName, configName string, serviceConfig *configproto.Config) {
 	// write raw config to cache
 	content, err := json.Marshal(serviceConfig)
 	if err != nil {
 		log.Printf("[client.grpc_client] json marshal failed: " + err.Error())
 		return
 	}
-	cache.WriteConfigToFile(c.config.CachePath, getServiceConfigKey(serviceName, groupId), string(content))
+	cache.WriteConfigToFile(c.config.CachePath, getServiceConfigKey(appGroupName, configName), string(content))
 
 	// write key value config to cache
 
@@ -666,11 +666,11 @@ func (c *GrpcClient) writeConfigToCache(serviceName, groupId string, serviceConf
 		log.Printf("[client.grpc_client] json marshal failed: " + err.Error())
 		return
 	}
-	cache.WriteConfigToFile(c.config.CachePath, getServiceConfigKeyPrefix(serviceName, groupId), string(keyContent))
+	cache.WriteConfigToFile(c.config.CachePath, getServiceConfigKeyPrefix(appGroupName, configName), string(keyContent))
 }
 
-func (c *GrpcClient) readConfigFromCache(serviceName, groupId string) (*configproto.Config, error) {
-	content, err := cache.ReadConfigFromFile(c.config.CachePath, getServiceConfigKey(serviceName, groupId))
+func (c *GrpcClient) readConfigFromCache(appGroupName, configName string) (*configproto.Config, error) {
+	content, err := cache.ReadConfigFromFile(c.config.CachePath, getServiceConfigKey(appGroupName, configName))
 	if err != nil {
 		return nil, err
 	}
@@ -684,12 +684,12 @@ func (c *GrpcClient) readConfigFromCache(serviceName, groupId string) (*configpr
 	return serviceConfig, nil
 }
 
-func getServiceConfigKey(serviceName, groupId string) string {
-	return serviceName + "_" + groupId
+func getServiceConfigKey(appGroupName, configName string) string {
+	return appGroupName + "_" + configName
 }
 
-func getServiceConfigKeyPrefix(serviceName, groupId string) string {
-	return serviceName + "_" + groupId + "_" + "keyvalue"
+func getServiceConfigKeyPrefix(appGroupName, configName string) string {
+	return appGroupName + "_" + configName + "_" + "keyvalue"
 }
 
 func getKeyValueConfig(serviceConfig *configproto.Config) *types.KeyValueConfig {

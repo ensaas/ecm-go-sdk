@@ -15,14 +15,14 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func GetDefaultServiceName() string {
-	serviceName := os.Getenv(constants.ServiceNameEnvVar)
-	return serviceName
+func GetDefaultAppGroupName() string {
+	appGroupName := os.Getenv(constants.AppGroupNameEnvVar)
+	return appGroupName
 }
 
-func GetDefaultGroupId() string {
-	groupId := os.Getenv(constants.GroupIdEnvVar)
-	return groupId
+func GetDefaultConfigName() string {
+	configName := os.Getenv(constants.ConfigNameEnvVar)
+	return configName
 }
 
 func ParseBackendInfo(maxRetryTimes int) (string, string, error) {

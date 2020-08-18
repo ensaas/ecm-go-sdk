@@ -14,14 +14,14 @@ message Config {
 
 message ConfigVersion {
     string version = 1;
-    string ServiceName = 2;
-    string GroupId = 3;
+    string AppGroupName = 2;
+    string ConfigName = 3;
     string publicVersion = 4;
 }
 
 message PublishConfigRequest {
-    string ServiceName = 1;
-    string GroupId = 2;
+    string AppGroupName = 1;
+    string ConfigName = 2;
     string private = 3;
     string format = 4;
     string TagName = 5;
@@ -33,8 +33,8 @@ message Response {
 }
 
 message PutConfigRequest {
-    string ServiceName = 1;
-    string GroupId = 2;
+    string AppGroupName = 1;
+    string ConfigName = 2;
     string HeartBeatPackage = 3;
 }
 
