@@ -3,6 +3,8 @@ package utils
 import (
 	"ecm-sdk-go/constants"
 	"ecm-sdk-go/flatten"
+	configproto "ecm-sdk-go/proto"
+	"ecm-sdk-go/types"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -92,4 +94,41 @@ func ParseConfigToMap(config, format string) (map[string]interface{}, error) {
 	}
 
 	return flattenMap, nil
+}
+
+func GetServiceConfigKey(appGroupName, configName string) string {
+	return appGroupName + "_" + configName
+}
+
+func GetServiceConfigKeyPrefix(appGroupName, configName string) string {
+	return appGroupName + "_" + configName + "_" + "keyvalue"
+}
+
+func GetKeyValueConfig(serviceConfig *configproto.Config) *types.KeyValueConfig {
+	flattenPrivate, err := ParseConfigToMap(serviceConfig.Private, serviceConfig.Format)
+	if err != nil {
+		log.Printf("[client.grpc_client] flatten private config failed: " + err.Error())
+		return nil
+	}
+
+	flattenPublic, err := ParseConfigToMap(serviceConfig.Public, serviceConfig.PublicFormat)
+	if err != nil {
+		log.Printf("[client.grpc_client] flatten public config failed: " + err.Error())
+		return nil
+	}
+	flattenServices, err := ParseConfigToMap(serviceConfig.Services, "json")
+	if err != nil {
+		log.Printf("[client.grpc_client] flatten services config failed: " + err.Error())
+		return nil
+	}
+
+	keyValueConfig := &types.KeyValueConfig{
+		Private:       flattenPrivate,
+		Version:       serviceConfig.Version,
+		Public:        flattenPublic,
+		PublicVersion: serviceConfig.PublicVersion,
+		Services:      flattenServices,
+	}
+
+	return keyValueConfig
 }

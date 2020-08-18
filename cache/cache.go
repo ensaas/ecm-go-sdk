@@ -2,6 +2,9 @@ package cache
 
 import (
 	"ecm-sdk-go/constants"
+	configproto "ecm-sdk-go/proto"
+	util "ecm-sdk-go/utils"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -29,4 +32,42 @@ func ReadConfigFromFile(cacheDir, cacheFilePrefix string) (string, error) {
 		return "", errors.New(fmt.Sprintf("failed to read config cache file:%s,err:%s! ", fileName, err.Error()))
 	}
 	return string(b), nil
+}
+
+func WriteConfigToCache(cachePath, appGroupName, configName string, serviceConfig *configproto.Config) {
+	// write raw config to cache
+	content, err := json.Marshal(serviceConfig)
+	if err != nil {
+		log.Printf("[client.grpc_client] json marshal failed: " + err.Error())
+		return
+	}
+	WriteConfigToFile(cachePath, util.GetServiceConfigKey(appGroupName, configName), string(content))
+
+	// write key value config to cache
+	keyValueConfig := util.GetKeyValueConfig(serviceConfig)
+	if keyValueConfig == nil {
+		return
+	}
+
+	keyContent, err := json.Marshal(keyValueConfig)
+	if err != nil {
+		log.Printf("[client.grpc_client] json marshal failed: " + err.Error())
+		return
+	}
+	WriteConfigToFile(cachePath, util.GetServiceConfigKeyPrefix(appGroupName, configName), string(keyContent))
+}
+
+func ReadConfigFromCache(cachePath, appGroupName, configName string) (*configproto.Config, error) {
+	content, err := ReadConfigFromFile(cachePath, util.GetServiceConfigKey(appGroupName, configName))
+	if err != nil {
+		return nil, err
+	}
+
+	serviceConfig := &configproto.Config{}
+	if err := json.Unmarshal([]byte(content), serviceConfig); err != nil {
+		log.Printf("[client.readConfigFromCache] json unmarshal failed")
+		return nil, err
+	}
+
+	return serviceConfig, nil
 }

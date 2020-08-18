@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -16,7 +15,6 @@ import (
 	"ecm-sdk-go/config"
 	"ecm-sdk-go/constants"
 	configproto "ecm-sdk-go/proto"
-	"ecm-sdk-go/types"
 	util "ecm-sdk-go/utils"
 
 	"google.golang.org/grpc"
@@ -193,12 +191,12 @@ func (c *GrpcClient) getConfig(appGroupName, configName string, serviceConfig *c
 		errStatus, _ := status.FromError(err)
 		if errStatus.Code() == codes.NotFound {
 			// write empty string to cache file
-			c.writeConfigToCache(appGroupName, configName, &configproto.Config{})
+			cache.WriteConfigToCache(c.config.CachePath, appGroupName, configName, &configproto.Config{})
 			log.Printf("[client.getConfig] " + errStatus.Message())
 			return err
 		} else if errStatus.Code() == codes.Internal || errStatus.Code() == codes.Unavailable {
 			// get config from cache
-			data, err = c.readConfigFromCache(appGroupName, configName)
+			data, err = cache.ReadConfigFromCache(c.config.CachePath, appGroupName, configName)
 			if err != nil {
 				log.Printf("[ERROR] get config from cache  error:%s ", err.Error())
 				return errors.New("read config from both server and cache fail")
@@ -218,7 +216,7 @@ func (c *GrpcClient) getConfig(appGroupName, configName string, serviceConfig *c
 		}
 
 		// write config to cache file
-		c.writeConfigToCache(appGroupName, configName, serviceConfig)
+		cache.WriteConfigToCache(c.config.CachePath, appGroupName, configName, serviceConfig)
 		c.serviceConfigMutex.Unlock()
 	}
 
@@ -296,7 +294,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 
 					// write config to cache file
 					if param != nil {
-						c.writeConfigToCache(param.AppGroupName, param.ConfigName, serviceConfig)
+						cache.WriteConfigToCache(c.config.CachePath, param.AppGroupName, param.ConfigName, serviceConfig)
 					}
 					c.serviceConfigMutex.Unlock()
 				}
@@ -478,7 +476,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 
 					// write config to cache file
 					if param != nil {
-						c.writeConfigToCache(param.AppGroupName, param.ConfigName, serviceConfig)
+						cache.WriteConfigToCache(c.config.CachePath, param.AppGroupName, param.ConfigName, serviceConfig)
 					}
 					c.serviceConfigMutex.Unlock()
 				}
@@ -643,80 +641,4 @@ func (c *GrpcClient) updateServiceConfig(serviceConfig, changedConfig *configpro
 		serviceConfig.PublicVersion = changedConfig.PublicVersion
 	}
 	return nil
-}
-
-func (c *GrpcClient) writeConfigToCache(appGroupName, configName string, serviceConfig *configproto.Config) {
-	// write raw config to cache
-	content, err := json.Marshal(serviceConfig)
-	if err != nil {
-		log.Printf("[client.grpc_client] json marshal failed: " + err.Error())
-		return
-	}
-	cache.WriteConfigToFile(c.config.CachePath, getServiceConfigKey(appGroupName, configName), string(content))
-
-	// write key value config to cache
-
-	keyValueConfig := getKeyValueConfig(serviceConfig)
-	if keyValueConfig == nil {
-		return
-	}
-
-	keyContent, err := json.Marshal(keyValueConfig)
-	if err != nil {
-		log.Printf("[client.grpc_client] json marshal failed: " + err.Error())
-		return
-	}
-	cache.WriteConfigToFile(c.config.CachePath, getServiceConfigKeyPrefix(appGroupName, configName), string(keyContent))
-}
-
-func (c *GrpcClient) readConfigFromCache(appGroupName, configName string) (*configproto.Config, error) {
-	content, err := cache.ReadConfigFromFile(c.config.CachePath, getServiceConfigKey(appGroupName, configName))
-	if err != nil {
-		return nil, err
-	}
-
-	serviceConfig := &configproto.Config{}
-	if err := json.Unmarshal([]byte(content), serviceConfig); err != nil {
-		log.Printf("[client.readConfigFromCache] json unmarshal failed")
-		return nil, err
-	}
-
-	return serviceConfig, nil
-}
-
-func getServiceConfigKey(appGroupName, configName string) string {
-	return appGroupName + "_" + configName
-}
-
-func getServiceConfigKeyPrefix(appGroupName, configName string) string {
-	return appGroupName + "_" + configName + "_" + "keyvalue"
-}
-
-func getKeyValueConfig(serviceConfig *configproto.Config) *types.KeyValueConfig {
-	flattenPrivate, err := util.ParseConfigToMap(serviceConfig.Private, serviceConfig.Format)
-	if err != nil {
-		log.Printf("[client.grpc_client] flatten private config failed: " + err.Error())
-		return nil
-	}
-
-	flattenPublic, err := util.ParseConfigToMap(serviceConfig.Public, serviceConfig.PublicFormat)
-	if err != nil {
-		log.Printf("[client.grpc_client] flatten public config failed: " + err.Error())
-		return nil
-	}
-	flattenServices, err := util.ParseConfigToMap(serviceConfig.Services, "json")
-	if err != nil {
-		log.Printf("[client.grpc_client] flatten services config failed: " + err.Error())
-		return nil
-	}
-
-	keyValueConfig := &types.KeyValueConfig{
-		Private:       flattenPrivate,
-		Version:       serviceConfig.Version,
-		Public:        flattenPublic,
-		PublicVersion: serviceConfig.PublicVersion,
-		Services:      flattenServices,
-	}
-
-	return keyValueConfig
 }

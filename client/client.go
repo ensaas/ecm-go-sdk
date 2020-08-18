@@ -66,7 +66,7 @@ func (client *ConfigClient) GetConfig(appGroupName, configName string) (*types.C
 		}
 	}
 
-	serviceKey := getServiceConfigKey(appGroupName, configName)
+	serviceKey := utils.GetServiceConfigKey(appGroupName, configName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
@@ -116,7 +116,7 @@ func (client *ConfigClient) GetKeyValueConfig(appGroupName, configName string) (
 		}
 	}
 
-	serviceKey := getServiceConfigKey(appGroupName, configName)
+	serviceKey := utils.GetServiceConfigKey(appGroupName, configName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
@@ -130,7 +130,7 @@ func (client *ConfigClient) GetKeyValueConfig(appGroupName, configName string) (
 		return nil, errors.New("grpc server can not be connected")
 	}
 
-	return getKeyValueConfig(client.serviceConfig[serviceKey]), nil
+	return utils.GetKeyValueConfig(client.serviceConfig[serviceKey]), nil
 }
 
 func (client *ConfigClient) GetPublicConfig(appGroupName, configName string) (string, error) {
@@ -150,7 +150,7 @@ func (client *ConfigClient) GetPublicConfig(appGroupName, configName string) (st
 	}
 
 	var public string
-	serviceKey := getServiceConfigKey(appGroupName, configName)
+	serviceKey := utils.GetServiceConfigKey(appGroupName, configName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
@@ -186,7 +186,7 @@ func (client *ConfigClient) GetPrivateConfig(appGroupName, configName string) (s
 	}
 
 	var private string
-	serviceKey := getServiceConfigKey(appGroupName, configName)
+	serviceKey := utils.GetServiceConfigKey(appGroupName, configName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
@@ -221,7 +221,7 @@ func (client *ConfigClient) GetServiceAddress(appGroupName, configName, service 
 	}
 
 	var serviceAddress map[string]*types.ServiceAddress
-	serviceKey := getServiceConfigKey(appGroupName, configName)
+	serviceKey := utils.GetServiceConfigKey(appGroupName, configName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
@@ -296,7 +296,7 @@ func (client *ConfigClient) ListenConfig(param config.ListenConfigParam) error {
 		}
 	}
 
-	serviceKey := getServiceConfigKey(param.AppGroupName, param.ConfigName)
+	serviceKey := utils.GetServiceConfigKey(param.AppGroupName, param.ConfigName)
 
 	if client.grpcClient != nil {
 		if client.serviceConfig[serviceKey] == nil {
