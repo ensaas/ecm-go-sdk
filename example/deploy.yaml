@@ -27,6 +27,11 @@ spec:
           privileged: true
           runAsUser: 0
           runAsGroup: 0
+        volumeMounts:
+        - mountPath: /mosn
+          name: cache-volume
+        - mountPath: /config/cache
+          name: cache-volume
         env:
         - name: namespace
           value: ensaasmesh
@@ -48,8 +53,6 @@ spec:
         - mountPath: /mosn
           name: cache-volume
         - mountPath: /home/admin/mosn/conf
-          name: cache-volume
-        - mountPath: /config/cache
           name: cache-volume
         env:
         - name: server_address
@@ -91,6 +94,8 @@ spec:
         - containerPort: 8080
         volumeMounts:
         - mountPath: /mosn
+          name: cache-volume
+        - mountPath: /config/cache
           name: cache-volume
       imagePullSecrets:
       - name: registrysecret
