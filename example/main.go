@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 var (
 	appGroupName = os.Getenv(constants.AppGroupNameEnvVar)
-	configName   = os.Getenv(constants.ConfigNameEnvVar)
+	configNames  = os.Getenv(constants.ConfigNamesEnvVar)
 )
 
 func createConfigClientTest() client.ConfigClient {
@@ -54,49 +55,54 @@ func main() {
 	c := createConfigClientTest()
 	defer c.DeleteConfigClient()
 
-	content, err := c.GetConfig(appGroupName, configName)
-	if err != nil {
-		fmt.Println("get config fail. errMessage = " + err.Error())
-	}
-	configBytes, err := json.Marshal(content)
-	if err != nil {
-		fmt.Println("json marshal fail. errMessage = " + err.Error())
-	}
-	fmt.Println("raw config is:")
-	fmt.Println(string(configBytes))
+	configNameList := strings.Split(configNames, ",")
+	for _, configNameTmp := range configNameList {
 
-	keyValueContent, err := c.GetKeyValueConfig(appGroupName, configName)
-	if err != nil {
-		fmt.Println("get config fail. errMessage = " + err.Error())
-	}
-	keyValueBytes, err := json.Marshal(keyValueContent)
-	if err != nil {
-		fmt.Println("json marshal fail. errMessage = " + err.Error())
-	}
-	fmt.Println("key value config is:")
-	fmt.Println(string(keyValueBytes))
+		configName := strings.Trim(configNameTmp, " ")
+		content, err := c.GetConfig(appGroupName, configName)
+		if err != nil {
+			fmt.Println(fmt.Sprintf("get raw config of config '%s' fail. errMessage = %s", configName, err.Error()))
+		}
+		configBytes, err := json.Marshal(content)
+		if err != nil {
+			fmt.Println(fmt.Sprintf("json marshal of config '%s' fail. errMessage = %s ", configName, err.Error()))
+		}
+		fmt.Println(fmt.Sprintf("raw config of config '%s' is:", configName))
+		fmt.Println(string(configBytes))
 
-	c.ListenConfig(config.ListenConfigParam{
-		AppGroupName: appGroupName,
-		ConfigName:   configName,
-		OnChange: func(object, key, value string) {
-			fmt.Println("config changed object:" + object + ", key:" + key + ", value:" + fmt.Sprint(value))
-		},
-	})
+		keyValueContent, err := c.GetKeyValueConfig(appGroupName, configName)
+		if err != nil {
+			fmt.Println(fmt.Sprintf("get key value config of '%s' fail. errMessage = %s", configName, err.Error()))
+		}
+		keyValueBytes, err := json.Marshal(keyValueContent)
+		if err != nil {
+			fmt.Println(fmt.Sprintf("json marshal of config '%s' fail. errMessage = %s ", configName, err.Error()))
+		}
+		fmt.Println(fmt.Sprintf("key value config of config '%s' is:", configName))
+		fmt.Println(string(keyValueBytes))
 
-	// publish config
-	publishConfig := &configproto.PublishConfigRequest{
-		AppGroupName: appGroupName,
-		ConfigName:   configName,
-		Private:      "key1: val1\nfield:\n  key2: val2\n  key3: val3\nkey4: val4\n",
-		TagName:      fmt.Sprintf("v0.0.1-sdk-%s", time.Now().Format("2006/01/02/15:04:05")),
-		Format:       "yaml",
-		Description:  "test",
-	}
+		c.ListenConfig(config.ListenConfigParam{
+			AppGroupName: appGroupName,
+			ConfigName:   configName,
+			OnChange: func(object, key, value string) {
+				fmt.Println(fmt.Sprintf("config '%s' changed object: %s, key: %s, value: %s", configName, object, key, value))
+			},
+		})
 
-	err = c.PublishConfig(publishConfig)
-	if err != nil {
-		fmt.Println("publish config fail. errMessage = " + err.Error())
+		// publish config
+		publishConfig := &configproto.PublishConfigRequest{
+			AppGroupName: appGroupName,
+			ConfigName:   configName,
+			Private:      "key1: val1\nfield:\n  key2: val2\n  key3: val3\nkey4: val4\n",
+			TagName:      fmt.Sprintf("v0.0.1-sdk-%s", time.Now().Format("2006/01/02/15:04:05")),
+			Format:       "yaml",
+			Description:  "test",
+		}
+
+		err = c.PublishConfig(publishConfig)
+		if err != nil {
+			fmt.Println(fmt.Sprintf("publish config '%s' fail. errMessage = %s", configName, err.Error()))
+		}
 	}
 
 	wg.Wait()

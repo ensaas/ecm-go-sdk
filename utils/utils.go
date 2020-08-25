@@ -23,7 +23,7 @@ func GetDefaultAppGroupName() string {
 }
 
 func GetDefaultConfigName() string {
-	configName := os.Getenv(constants.ConfigNameEnvVar)
+	configName := os.Getenv(constants.ConfigNamesEnvVar)
 	return configName
 }
 

@@ -7,7 +7,7 @@ const (
 	ConfigServerEnvVar                = EnvPrefix + "CONFIG_SERVER"
 	ConfigPortEnvVar                  = EnvPrefix + "CONFIG_PORT"
 	AppGroupNameEnvVar                = EnvPrefix + "APPGROUP_NAME"
-	ConfigNameEnvVar                  = EnvPrefix + "CONFIG_NAME"
+	ConfigNamesEnvVar                 = EnvPrefix + "CONFIG_NAMES"
 	CachePathEnvVar                   = EnvPrefix + "CACHE_PATH"
 	UpdateEnvWhenChangedEnvVar        = EnvPrefix + "UPDATE_ENV_WHEN_CHANGED"
 	NotLoadCacheAtStartEnvVar         = EnvPrefix + "NOTLOAD_CACHE_AT_START"

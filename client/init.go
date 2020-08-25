@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 )
 
 var (
@@ -26,10 +27,10 @@ func init() {
 	}
 
 	appGroupName := utils.GetDefaultAppGroupName()
-	configName := utils.GetDefaultConfigName()
+	configNames := utils.GetDefaultConfigName()
 
-	if configName == "" || appGroupName == "" {
-		log.Printf(fmt.Sprintf("[client.init] Warning the environment variables %s or %s is empty", constants.AppGroupNameEnvVar, constants.ConfigNameEnvVar))
+	if configNames == "" || appGroupName == "" {
+		log.Printf(fmt.Sprintf("[client.init] Warning the environment variables %s or %s is empty", constants.AppGroupNameEnvVar, constants.ConfigNamesEnvVar))
 		return
 	}
 
@@ -40,12 +41,16 @@ func init() {
 		return
 	}
 
-	param := &config.ListenConfigParam{
-		AppGroupName: appGroupName,
-		ConfigName:   configName,
-	}
+	configNamesList := parseConfigNames(configNames)
+	for _, configNameTmp := range configNamesList {
+		configName := strings.Trim(configNameTmp, " ")
+		param := &config.ListenConfigParam{
+			AppGroupName: appGroupName,
+			ConfigName:   configName,
+		}
 
-	DefaultGrpcClient.listenConfig(&DefaultServiceConfig, param)
+		DefaultGrpcClient.listenConfig(&DefaultServiceConfig, param)
+	}
 }
 
 func getDefaultClientConfig() config.ClientConfig {
@@ -78,4 +83,9 @@ func getDefaultClientConfig() config.ClientConfig {
 	}
 
 	return clientConfig
+}
+
+func parseConfigNames(configNames string) []string {
+	arr := strings.Split(configNames, ",")
+	return arr
 }
