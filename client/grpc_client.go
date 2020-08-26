@@ -15,6 +15,7 @@ import (
 	"ecm-sdk-go/config"
 	"ecm-sdk-go/constants"
 	configproto "ecm-sdk-go/proto"
+	"ecm-sdk-go/utils"
 	util "ecm-sdk-go/utils"
 
 	"google.golang.org/grpc"
@@ -27,8 +28,8 @@ type GrpcClient struct {
 	config             config.ClientConfig
 	client             configproto.ConfigServiceClient
 	ctx                context.Context
-	listenConfigClient configproto.ConfigService_ListenConfigClient
-	putConfigClient    configproto.ConfigService_PutConfigClient
+	listenConfigClient map[string]configproto.ConfigService_ListenConfigClient
+	putConfigClient    map[string]configproto.ConfigService_PutConfigClient
 	conn               *grpc.ClientConn
 	serviceConfigMutex sync.RWMutex
 	streamClientMutex  sync.RWMutex
@@ -56,15 +57,15 @@ func newGrpcClient(configServer, configPort string, clientConfig config.ClientCo
 	c := configproto.NewConfigServiceClient(conn)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	listenConfigClient, err := c.ListenConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// listenConfigClient, err := c.ListenConfig(ctx)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	putConfigClient, err := c.PutConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// putConfigClient, err := c.PutConfig(ctx)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	return &GrpcClient{
 		address:            address,
@@ -73,8 +74,8 @@ func newGrpcClient(configServer, configPort string, clientConfig config.ClientCo
 		client:             c,
 		ctx:                ctx,
 		cancel:             cancel,
-		listenConfigClient: listenConfigClient,
-		putConfigClient:    putConfigClient,
+		listenConfigClient: make(map[string]configproto.ConfigService_ListenConfigClient),
+		putConfigClient:    make(map[string]configproto.ConfigService_PutConfigClient),
 		chanCount:          0,
 	}, nil
 
@@ -135,15 +136,30 @@ func (c *GrpcClient) reconnect() {
 
 		ctx, cancel := context.WithCancel(context.Background())
 
-		listenConfigClient, err := client.ListenConfig(ctx)
-		if err != nil {
+		isFailed := false
+		for key := range c.listenConfigClient {
+			if _, ok := c.listenConfigClient[key]; ok {
+				if c.listenConfigClient[key], err = client.ListenConfig(ctx); err != nil {
+					isFailed = true
+					break
+				}
+			}
+		}
+		if isFailed {
 			time.Sleep(interval + time.Duration(rand.Intn(1000))*time.Millisecond)
 			interval = computeInterval(interval)
 			continue
 		}
 
-		putConfigClient, err := client.PutConfig(ctx)
-		if err != nil {
+		for key := range c.putConfigClient {
+			if _, ok := c.putConfigClient[key]; ok {
+				if c.putConfigClient[key], err = client.PutConfig(ctx); err != nil {
+					isFailed = true
+					break
+				}
+			}
+		}
+		if isFailed {
 			time.Sleep(interval + time.Duration(rand.Intn(1000))*time.Millisecond)
 			interval = computeInterval(interval)
 			continue
@@ -152,8 +168,6 @@ func (c *GrpcClient) reconnect() {
 		c.streamClientMutex.Lock()
 		c.client = client
 		c.ctx = ctx
-		c.listenConfigClient = listenConfigClient
-		c.putConfigClient = putConfigClient
 		c.conn = conn
 		c.cancel = cancel
 		c.streamClientMutex.Unlock()
@@ -252,238 +266,260 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 	if c.deleteChan == nil {
 		c.deleteChan = make(chan int)
 	}
+
+	// initial receive channel
 	if c.listenRecvChan == nil {
-		// initial receive channel
 		c.listenRecvChan = make(chan int)
-		c.chanCount++
-		go func() {
-			for {
-				select {
-				case <-c.listenRecvChan:
-					log.Printf("[client.listenConfig] listen receive thread receive graceful shutdown signal")
-					c.deleteChan <- c.chanCount
-					return
-				default:
-					c.streamClientMutex.RLock()
-					listenConfigClient := c.listenConfigClient
-					c.streamClientMutex.RUnlock()
+	}
+	c.chanCount++
 
-					if listenConfigClient == nil {
-						time.Sleep(time.Second)
-						continue
-					}
+	// create listen config client
+	listenClientKey := utils.GetServiceConfigKeyAddRandom(param.AppGroupName, param.ConfigName)
+	c.streamClientMutex.RLock()
+	for {
+		listenConfigClient, err := c.client.ListenConfig(c.ctx)
+		if err != nil || listenConfigClient == nil {
+			log.Printf(err.Error())
+			c.reconnect()
+			continue
+		}
+		c.listenConfigClient[listenClientKey] = listenConfigClient
+		break
+	}
+	c.streamClientMutex.RUnlock()
 
-					data, err := listenConfigClient.Recv()
-					if err != nil {
-						errStatus, _ := status.FromError(err)
-						if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
-							log.Printf("[client.listenConfig] listen receive thread failed: " + err.Error())
-							return
-						}
-						log.Println(err)
-						time.Sleep(time.Second)
-						continue
+	go func() {
+		for {
+			select {
+			case <-c.listenRecvChan:
+				log.Printf("[client.listenConfig] listen receive thread receive graceful shutdown signal")
+				c.deleteChan <- c.chanCount
+				return
+			default:
+				data, err := c.listenConfigClient[listenClientKey].Recv()
+				if err != nil {
+					errStatus, _ := status.FromError(err)
+					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
+						log.Printf("[client.listenConfig] listen receive thread failed: " + err.Error())
+						return
 					}
+					log.Println(err)
+					time.Sleep(time.Second)
+					continue
+				}
 
-					c.serviceConfigMutex.Lock()
-					// update service config and set env
-					if err := c.updateServiceConfig(serviceConfig, data, param); err != nil {
-						c.serviceConfigMutex.Unlock()
-						continue
-					}
-
-					// write config to cache file
-					if param != nil {
-						cache.WriteConfigToCache(c.config.CachePath, param.AppGroupName, param.ConfigName, serviceConfig)
-					}
+				c.serviceConfigMutex.Lock()
+				// update service config and set env
+				if err := c.updateServiceConfig(serviceConfig, data, param); err != nil {
 					c.serviceConfigMutex.Unlock()
+					continue
 				}
-			}
-		}()
-	}
 
+				// write config to cache file
+				if param != nil {
+					cache.WriteConfigToCache(c.config.CachePath, param.AppGroupName, param.ConfigName, serviceConfig)
+				}
+				c.serviceConfigMutex.Unlock()
+			}
+		}
+	}()
+
+	// initial send channel
 	if c.listenSendChan == nil {
-		// initial send channel
 		c.listenSendChan = make(chan int)
-		c.chanCount++
-		go func() {
-			c.serviceConfigMutex.RLock()
-			err := c.listenConfigClient.Send(&configproto.ConfigVersion{
-				Version:       serviceConfig.Version,
-				AppGroupName:  param.AppGroupName,
-				ConfigName:    param.ConfigName,
-				PublicVersion: serviceConfig.PublicVersion,
-			})
-			c.serviceConfigMutex.RUnlock()
-			if err != nil {
-				errStatus, _ := status.FromError(err)
-				if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
-					log.Printf("[client.listenConfig] listen send thread failed: " + err.Error())
-					return
-				}
-				log.Printf(err.Error())
-				c.reconnect()
-			}
-
-			// TODO: set timer internal by client?
-			t1 := time.NewTimer(time.Duration(c.config.ListenInterval) * time.Second)
-			for {
-				select {
-				case <-c.listenSendChan:
-					log.Printf("[client.listenConfig] listen send thread receive graceful shutdown signal")
-					c.deleteChan <- c.chanCount
-					return
-				case <-t1.C:
-					if c.listenConfigClient == nil {
-						c.reconnect()
-					}
-
-					c.serviceConfigMutex.RLock()
-					err := c.listenConfigClient.Send(&configproto.ConfigVersion{
-						Version:       serviceConfig.Version,
-						AppGroupName:  param.AppGroupName,
-						ConfigName:    param.ConfigName,
-						PublicVersion: serviceConfig.PublicVersion,
-					})
-					c.serviceConfigMutex.RUnlock()
-					if err != nil {
-						errStatus, _ := status.FromError(err)
-						if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
-							log.Printf("[client.listenConfig] listen send thread failed: " + err.Error())
-							return
-						}
-						log.Printf(err.Error())
-						c.reconnect()
-					}
-					t1.Reset(time.Duration(c.config.ListenInterval) * time.Second)
-				}
-			}
-		}()
 	}
+	c.chanCount++
+	go func() {
+		c.serviceConfigMutex.RLock()
+		err := c.listenConfigClient[listenClientKey].Send(&configproto.ConfigVersion{
+			Version:       serviceConfig.Version,
+			AppGroupName:  param.AppGroupName,
+			ConfigName:    param.ConfigName,
+			PublicVersion: serviceConfig.PublicVersion,
+		})
+		c.serviceConfigMutex.RUnlock()
+		if err != nil {
+			errStatus, _ := status.FromError(err)
+			if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
+				log.Printf("[client.listenConfig] listen send thread failed: " + err.Error())
+				return
+			}
+			log.Printf(err.Error())
+			c.reconnect()
+		}
+
+		t1 := time.NewTimer(time.Duration(c.config.ListenInterval) * time.Second)
+		for {
+			select {
+			case <-c.listenSendChan:
+				log.Printf("[client.listenConfig] listen send thread receive graceful shutdown signal")
+				c.deleteChan <- c.chanCount
+				return
+			case <-t1.C:
+				if c.listenConfigClient[listenClientKey] == nil {
+					c.reconnect()
+				}
+
+				c.serviceConfigMutex.RLock()
+				err := c.listenConfigClient[listenClientKey].Send(&configproto.ConfigVersion{
+					Version:       serviceConfig.Version,
+					AppGroupName:  param.AppGroupName,
+					ConfigName:    param.ConfigName,
+					PublicVersion: serviceConfig.PublicVersion,
+				})
+				c.serviceConfigMutex.RUnlock()
+				if err != nil {
+					errStatus, _ := status.FromError(err)
+					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
+						log.Printf("[client.listenConfig] listen send thread failed: " + err.Error())
+						return
+					}
+					log.Printf(err.Error())
+					c.reconnect()
+				}
+				t1.Reset(time.Duration(c.config.ListenInterval) * time.Second)
+			}
+		}
+	}()
 
 	if c.putSendChan == nil {
 		c.putSendChan = make(chan int)
-		c.chanCount++
-		go func() {
-			putConfigRequest := &configproto.PutConfigRequest{
-				AppGroupName: param.AppGroupName,
-				ConfigName:   param.ConfigName,
-			}
-			err := c.putConfigClient.Send(putConfigRequest)
-			if err != nil {
-				errStatus, _ := status.FromError(err)
-				if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
-					log.Printf("[client.listenConfig] put send thread failed: " + err.Error())
-					return
-				}
+	}
+	c.chanCount++
+
+	// create put config client
+	c.streamClientMutex.RLock()
+	for {
+		putConfigClient, err := c.client.PutConfig(c.ctx)
+		if err != nil || putConfigClient == nil {
+			log.Printf(err.Error())
+			c.reconnect()
+			continue
+		}
+		c.putConfigClient[listenClientKey] = putConfigClient
+		break
+	}
+	c.streamClientMutex.RUnlock()
+	go func() {
+		putConfigRequest := &configproto.PutConfigRequest{
+			AppGroupName: param.AppGroupName,
+			ConfigName:   param.ConfigName,
+		}
+		err := c.putConfigClient[listenClientKey].Send(putConfigRequest)
+		if err != nil {
+			errStatus, _ := status.FromError(err)
+			if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
 				log.Printf("[client.listenConfig] put send thread failed: " + err.Error())
-				c.reconnect()
+				return
 			}
+			log.Printf("[client.listenConfig] put send thread failed: " + err.Error())
+			c.reconnect()
+		}
 
-			// send heartbeat package
-			t1 := time.NewTimer(time.Duration(constants.HeartBeatInterval) * time.Second)
-			for {
-				select {
-				case <-c.putSendChan:
-					log.Printf("[client.listenConfig] listen send thread receive graceful shutdown signal")
-					c.deleteChan <- c.chanCount
-					return
-				case <-t1.C:
-					c.streamClientMutex.RLock()
-					putConfigClient := c.putConfigClient
-					c.streamClientMutex.RUnlock()
+		// send heartbeat package
+		t1 := time.NewTimer(time.Duration(constants.HeartBeatInterval) * time.Second)
+		for {
+			select {
+			case <-c.putSendChan:
+				log.Printf("[client.listenConfig] listen send thread receive graceful shutdown signal")
+				c.deleteChan <- c.chanCount
+				return
+			case <-t1.C:
+				c.streamClientMutex.RLock()
+				putConfigClient := c.putConfigClient
+				c.streamClientMutex.RUnlock()
 
-					if putConfigClient == nil {
-						t1.Reset(time.Duration(constants.HeartBeatInterval) * time.Second)
-						continue
-					}
-					putConfigRequest := &configproto.PutConfigRequest{
-						AppGroupName:     param.AppGroupName,
-						ConfigName:       param.ConfigName,
-						HeartBeatPackage: constants.HeartBeatPackage,
-					}
-					err := putConfigClient.Send(putConfigRequest)
-					if err != nil {
-						errStatus, _ := status.FromError(err)
-						if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
-							log.Printf("[client.listenConfig] put send thread failed: " + err.Error())
-							return
-						}
-						log.Printf("[client.listenconfig] put send thread failed: " + err.Error())
-					}
+				if putConfigClient == nil {
 					t1.Reset(time.Duration(constants.HeartBeatInterval) * time.Second)
+					continue
 				}
+				putConfigRequest := &configproto.PutConfigRequest{
+					AppGroupName:     param.AppGroupName,
+					ConfigName:       param.ConfigName,
+					HeartBeatPackage: constants.HeartBeatPackage,
+				}
+				err := putConfigClient[listenClientKey].Send(putConfigRequest)
+				if err != nil {
+					errStatus, _ := status.FromError(err)
+					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
+						log.Printf("[client.listenConfig] put send thread failed: " + err.Error())
+						return
+					}
+					log.Printf("[client.listenconfig] put send thread failed: " + err.Error())
+				}
+				t1.Reset(time.Duration(constants.HeartBeatInterval) * time.Second)
 			}
-		}()
-	}
+		}
+	}()
 
+	// initial send channel
 	if c.putRecvChan == nil {
-		// initial send channel
 		c.putRecvChan = make(chan int)
-		c.chanCount++
-		go func() {
-			for {
-				select {
-				case <-c.putRecvChan:
-					log.Printf("[client.listenConfig] listen putConfig receive thread receive graceful shutdown signal")
-					c.deleteChan <- c.chanCount
-					return
-				default:
-					c.streamClientMutex.RLock()
-					putConfigClient := c.putConfigClient
-					c.streamClientMutex.RUnlock()
-
-					if putConfigClient == nil {
-						time.Sleep(time.Second)
-						continue
-					}
-
-					data, err := putConfigClient.Recv()
-					if err != nil {
-						errStatus, _ := status.FromError(err)
-						if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
-							log.Printf("[client.listenConfig] put receive thread failed: " + err.Error())
-							return
-						}
-						log.Printf("[client.listenconfig] receive data from put config request failed: " + err.Error())
-						time.Sleep(time.Second)
-						continue
-					}
-					if data == nil {
-						log.Printf("[client.listenconfig] receive data from put config request is empty")
-						continue
-					}
-
-					// delete message of config server
-					deleteMessageRequest := &configproto.UpdateConfigMessage{
-						Key:   data.UpdateConfigMessage.Key,
-						Value: data.UpdateConfigMessage.Value,
-					}
-
-					response, err := c.client.DeleteMessage(c.ctx, deleteMessageRequest)
-					if err != nil || response.Result != constants.GrpcResponseSuccess {
-						// retry
-						c.client.DeleteMessage(c.ctx, deleteMessageRequest)
-					}
-
-					c.serviceConfigMutex.Lock()
-					// update service config
-
-					if err := c.updateServiceConfig(serviceConfig, data.Config, param); err != nil {
-						c.serviceConfigMutex.Unlock()
-						continue
-					}
-
-					// write config to cache file
-					if param != nil {
-						cache.WriteConfigToCache(c.config.CachePath, param.AppGroupName, param.ConfigName, serviceConfig)
-					}
-					c.serviceConfigMutex.Unlock()
-				}
-			}
-
-		}()
 	}
+	c.chanCount++
+	go func() {
+		for {
+			select {
+			case <-c.putRecvChan:
+				log.Printf("[client.listenConfig] listen putConfig receive thread receive graceful shutdown signal")
+				c.deleteChan <- c.chanCount
+				return
+			default:
+				c.streamClientMutex.RLock()
+				putConfigClient := c.putConfigClient[listenClientKey]
+				c.streamClientMutex.RUnlock()
+
+				if putConfigClient == nil {
+					time.Sleep(time.Second)
+					continue
+				}
+
+				data, err := putConfigClient.Recv()
+				if err != nil {
+					errStatus, _ := status.FromError(err)
+					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
+						log.Printf("[client.listenConfig] put receive thread failed: " + err.Error())
+						return
+					}
+					log.Printf("[client.listenconfig] receive data from put config request failed: " + err.Error())
+					time.Sleep(time.Second)
+					continue
+				}
+				if data == nil {
+					log.Printf("[client.listenconfig] receive data from put config request is empty")
+					continue
+				}
+
+				// delete message of config server
+				deleteMessageRequest := &configproto.UpdateConfigMessage{
+					Key:   data.UpdateConfigMessage.Key,
+					Value: data.UpdateConfigMessage.Value,
+				}
+
+				response, err := c.client.DeleteMessage(c.ctx, deleteMessageRequest)
+				if err != nil || response.Result != constants.GrpcResponseSuccess {
+					// retry
+					c.client.DeleteMessage(c.ctx, deleteMessageRequest)
+				}
+
+				c.serviceConfigMutex.Lock()
+				// update service config
+
+				if err := c.updateServiceConfig(serviceConfig, data.Config, param); err != nil {
+					c.serviceConfigMutex.Unlock()
+					continue
+				}
+
+				// write config to cache file
+				if param != nil {
+					cache.WriteConfigToCache(c.config.CachePath, param.AppGroupName, param.ConfigName, serviceConfig)
+				}
+				c.serviceConfigMutex.Unlock()
+			}
+		}
+
+	}()
+
 }
 
 func computeInterval(t time.Duration) time.Duration {

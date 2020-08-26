@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"time"
 
@@ -131,4 +132,26 @@ func GetKeyValueConfig(serviceConfig *configproto.Config) *types.KeyValueConfig 
 	}
 
 	return keyValueConfig
+}
+
+func GetServiceConfigKeyAddRandom(appGroupName, configName string) string {
+	return appGroupName + "_" + configName + "_" + RandomString(4)
+}
+
+// RandomString returns a random string with a fixed length
+func RandomString(n int, allowedChars ...[]rune) string {
+	var defaultLetters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	var letters []rune
+	if len(allowedChars) == 0 {
+		letters = defaultLetters
+	} else {
+		letters = allowedChars[0]
+	}
+	b := make([]rune, n)
+
+	rand.Seed(time.Now().UnixNano())
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }
