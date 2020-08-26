@@ -55,17 +55,7 @@ func newGrpcClient(configServer, configPort string, clientConfig config.ClientCo
 	}
 
 	c := configproto.NewConfigServiceClient(conn)
-
 	ctx, cancel := context.WithCancel(context.Background())
-	// listenConfigClient, err := c.ListenConfig(ctx)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// putConfigClient, err := c.PutConfig(ctx)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	return &GrpcClient{
 		address:            address,
@@ -114,9 +104,7 @@ func (c *GrpcClient) deleteGrpcClient() {
 
 func (c *GrpcClient) reconnect() {
 	// stop grpc client before reconnect
-	c.streamClientMutex.Lock()
 	c.closeStreamClient()
-	c.streamClientMutex.Unlock()
 
 	interval := time.Second
 	for {
@@ -137,6 +125,7 @@ func (c *GrpcClient) reconnect() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		isFailed := false
+		c.streamClientMutex.Lock()
 		for key := range c.listenConfigClient {
 			if _, ok := c.listenConfigClient[key]; ok {
 				if c.listenConfigClient[key], err = client.ListenConfig(ctx); err != nil {
@@ -145,12 +134,14 @@ func (c *GrpcClient) reconnect() {
 				}
 			}
 		}
+		c.streamClientMutex.Unlock()
 		if isFailed {
 			time.Sleep(interval + time.Duration(rand.Intn(1000))*time.Millisecond)
 			interval = computeInterval(interval)
 			continue
 		}
 
+		c.streamClientMutex.Lock()
 		for key := range c.putConfigClient {
 			if _, ok := c.putConfigClient[key]; ok {
 				if c.putConfigClient[key], err = client.PutConfig(ctx); err != nil {
@@ -159,18 +150,17 @@ func (c *GrpcClient) reconnect() {
 				}
 			}
 		}
+		c.streamClientMutex.Unlock()
 		if isFailed {
 			time.Sleep(interval + time.Duration(rand.Intn(1000))*time.Millisecond)
 			interval = computeInterval(interval)
 			continue
 		}
 
-		c.streamClientMutex.Lock()
 		c.client = client
 		c.ctx = ctx
 		c.conn = conn
 		c.cancel = cancel
-		c.streamClientMutex.Unlock()
 		log.Printf("[client.grpc_client] Connected")
 		break
 	}
@@ -184,9 +174,22 @@ func (c *GrpcClient) closeStreamClient() {
 		c.conn.Close()
 		c.conn = nil
 	}
-	c.listenConfigClient = nil
-	c.putConfigClient = nil
+
+	c.streamClientMutex.Lock()
+	for key := range c.listenConfigClient {
+		if _, ok := c.listenConfigClient[key]; ok {
+			c.listenConfigClient[key] = nil
+		}
+	}
+	for key := range c.putConfigClient {
+		if _, ok := c.putConfigClient[key]; ok {
+			c.putConfigClient[key] = nil
+		}
+	}
+	c.streamClientMutex.Unlock()
+
 	c.cancel()
+
 }
 
 func (c *GrpcClient) getConfig(appGroupName, configName string, serviceConfig *configproto.Config) error {
@@ -275,18 +278,15 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 
 	// create listen config client
 	listenClientKey := utils.GetServiceConfigKeyAddRandom(param.AppGroupName, param.ConfigName)
-	c.streamClientMutex.RLock()
-	for {
-		listenConfigClient, err := c.client.ListenConfig(c.ctx)
-		if err != nil || listenConfigClient == nil {
-			log.Printf(err.Error())
-			c.reconnect()
-			continue
-		}
-		c.listenConfigClient[listenClientKey] = listenConfigClient
-		break
+	c.streamClientMutex.Lock()
+	listenConfigClient, err := c.client.ListenConfig(c.ctx)
+	if err != nil {
+		log.Printf(err.Error())
+		return
+
 	}
-	c.streamClientMutex.RUnlock()
+	c.listenConfigClient[listenClientKey] = listenConfigClient
+	c.streamClientMutex.Unlock()
 
 	go func() {
 		for {
@@ -296,7 +296,15 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				c.deleteChan <- c.chanCount
 				return
 			default:
-				data, err := c.listenConfigClient[listenClientKey].Recv()
+				c.streamClientMutex.RLock()
+				listenConfigClient := c.listenConfigClient[listenClientKey]
+				c.streamClientMutex.RUnlock()
+
+				if listenConfigClient == nil {
+					time.Sleep(time.Second)
+					continue
+				}
+				data, err := listenConfigClient.Recv()
 				if err != nil {
 					errStatus, _ := status.FromError(err)
 					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
@@ -330,8 +338,12 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 	}
 	c.chanCount++
 	go func() {
+		c.streamClientMutex.RLock()
+		listenConfigClient := c.listenConfigClient[listenClientKey]
+		c.streamClientMutex.RUnlock()
+
 		c.serviceConfigMutex.RLock()
-		err := c.listenConfigClient[listenClientKey].Send(&configproto.ConfigVersion{
+		err := listenConfigClient.Send(&configproto.ConfigVersion{
 			Version:       serviceConfig.Version,
 			AppGroupName:  param.AppGroupName,
 			ConfigName:    param.ConfigName,
@@ -356,12 +368,16 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				c.deleteChan <- c.chanCount
 				return
 			case <-t1.C:
-				if c.listenConfigClient[listenClientKey] == nil {
-					c.reconnect()
+				c.streamClientMutex.RLock()
+				listenConfigClient := c.listenConfigClient[listenClientKey]
+				c.streamClientMutex.RUnlock()
+				if listenConfigClient == nil {
+					time.Sleep(time.Second)
+					continue
 				}
 
 				c.serviceConfigMutex.RLock()
-				err := c.listenConfigClient[listenClientKey].Send(&configproto.ConfigVersion{
+				err := listenConfigClient.Send(&configproto.ConfigVersion{
 					Version:       serviceConfig.Version,
 					AppGroupName:  param.AppGroupName,
 					ConfigName:    param.ConfigName,
@@ -388,24 +404,24 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 	c.chanCount++
 
 	// create put config client
-	c.streamClientMutex.RLock()
-	for {
-		putConfigClient, err := c.client.PutConfig(c.ctx)
-		if err != nil || putConfigClient == nil {
-			log.Printf(err.Error())
-			c.reconnect()
-			continue
-		}
-		c.putConfigClient[listenClientKey] = putConfigClient
-		break
+	c.streamClientMutex.Lock()
+	putConfigClient, err := c.client.PutConfig(c.ctx)
+	if err != nil {
+		log.Printf(err.Error())
 	}
-	c.streamClientMutex.RUnlock()
+	c.putConfigClient[listenClientKey] = putConfigClient
+	c.streamClientMutex.Unlock()
+
 	go func() {
 		putConfigRequest := &configproto.PutConfigRequest{
 			AppGroupName: param.AppGroupName,
 			ConfigName:   param.ConfigName,
 		}
-		err := c.putConfigClient[listenClientKey].Send(putConfigRequest)
+		c.streamClientMutex.RLock()
+		putConfigClient := c.putConfigClient[listenClientKey]
+		c.streamClientMutex.RUnlock()
+
+		err := putConfigClient.Send(putConfigRequest)
 		if err != nil {
 			errStatus, _ := status.FromError(err)
 			if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
@@ -426,7 +442,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				return
 			case <-t1.C:
 				c.streamClientMutex.RLock()
-				putConfigClient := c.putConfigClient
+				putConfigClient := c.putConfigClient[listenClientKey]
 				c.streamClientMutex.RUnlock()
 
 				if putConfigClient == nil {
@@ -438,7 +454,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 					ConfigName:       param.ConfigName,
 					HeartBeatPackage: constants.HeartBeatPackage,
 				}
-				err := putConfigClient[listenClientKey].Send(putConfigRequest)
+				err := putConfigClient.Send(putConfigRequest)
 				if err != nil {
 					errStatus, _ := status.FromError(err)
 					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {

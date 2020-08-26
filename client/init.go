@@ -13,8 +13,7 @@ import (
 )
 
 var (
-	DefaultServiceConfig = configproto.Config{}
-	DefaultGrpcClient    = &GrpcClient{}
+	DefaultGrpcClient = &GrpcClient{}
 )
 
 func init() {
@@ -43,13 +42,14 @@ func init() {
 
 	configNamesList := parseConfigNames(configNames)
 	for _, configNameTmp := range configNamesList {
+		serviceConfig := configproto.Config{}
 		configName := strings.Trim(configNameTmp, " ")
 		param := &config.ListenConfigParam{
 			AppGroupName: appGroupName,
 			ConfigName:   configName,
 		}
 
-		DefaultGrpcClient.listenConfig(&DefaultServiceConfig, param)
+		DefaultGrpcClient.listenConfig(&serviceConfig, param)
 	}
 }
 
