@@ -1,9 +1,9 @@
-package client
+package global
 
 import (
+	"ecm-sdk-go/client"
 	"ecm-sdk-go/config"
 	"ecm-sdk-go/constants"
-	configproto "ecm-sdk-go/proto"
 	"ecm-sdk-go/utils"
 	"fmt"
 	"log"
@@ -12,19 +12,8 @@ import (
 	"strings"
 )
 
-var (
-	DefaultGrpcClient = &GrpcClient{}
-)
-
 func init() {
-	// get server addrss
-	configServer := os.Getenv(constants.ConfigServerEnvVar)
-	configPort := os.Getenv(constants.ConfigPortEnvVar)
-	if configServer == "" || configPort == "" {
-		log.Printf(fmt.Sprintf("[client.init] Warning the environment variables %s or %s is empty", constants.ConfigServerEnvVar, constants.ConfigPortEnvVar))
-		return
-	}
-
+	// get client config
 	appGroupName := utils.GetDefaultAppGroupName()
 	configNames := utils.GetDefaultConfigName()
 
@@ -32,24 +21,43 @@ func init() {
 		log.Printf(fmt.Sprintf("[client.init] Warning the environment variables %s or %s is empty", constants.AppGroupNameEnvVar, constants.ConfigNamesEnvVar))
 		return
 	}
-
 	clientConfig := getDefaultClientConfig()
-	DefaultGrpcClient, err := newGrpcClient(configServer, configPort, clientConfig)
+
+	// get server config
+	configServer := os.Getenv(constants.ConfigServerEnvVar)
+	configPort := os.Getenv(constants.ConfigPortEnvVar)
+	if configServer == "" || configPort == "" {
+		log.Printf(fmt.Sprintf("[client.init] Warning the environment variables %s or %s is empty", constants.ConfigServerEnvVar, constants.ConfigPortEnvVar))
+		return
+	}
+	port, err := strconv.ParseUint(configPort, 10, 0)
 	if err != nil {
-		log.Printf("[client.init] Warning creating grpc client. errMessage = %s" + err.Error())
+		log.Println("The config port invalid. errMessage = " + err.Error())
+		return
+	}
+
+	var serverConfig = config.ServerConfig{
+		IpAddr: configServer,
+		Port:   port,
+	}
+
+	conf := config.Config{}
+	conf.SetServerConfig(serverConfig)
+	conf.SetClientConfig(clientConfig)
+
+	configClient, err := client.NewConfigClient(&conf)
+	if err != nil {
+		log.Println(err)
 		return
 	}
 
 	configNamesList := parseConfigNames(configNames)
 	for _, configNameTmp := range configNamesList {
-		serviceConfig := configproto.Config{}
 		configName := strings.Trim(configNameTmp, " ")
-		param := &config.ListenConfigParam{
+		configClient.ListenConfig(config.ListenConfigParam{
 			AppGroupName: appGroupName,
 			ConfigName:   configName,
-		}
-
-		DefaultGrpcClient.listenConfig(&serviceConfig, param)
+		})
 	}
 }
 
