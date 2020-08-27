@@ -57,7 +57,7 @@ func (client *ConfigClient) GetConfig(appGroupName, configName string) (*types.C
 	}
 
 	if configName == "" {
-		configNames, err := utils.GetDefaultConfigName()
+		configNames, err := utils.GetDefaultConfigNames()
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +117,7 @@ func (client *ConfigClient) GetKeyValueConfig(appGroupName, configName string) (
 	}
 
 	if configName == "" {
-		configNames, err := utils.GetDefaultConfigName()
+		configNames, err := utils.GetDefaultConfigNames()
 		if err != nil {
 			return nil, err
 		}
@@ -160,7 +160,7 @@ func (client *ConfigClient) GetPublicConfig(appGroupName, configName string) (st
 	}
 
 	if configName == "" {
-		configNames, err := utils.GetDefaultConfigName()
+		configNames, err := utils.GetDefaultConfigNames()
 		if err != nil {
 			return "", err
 		}
@@ -206,7 +206,7 @@ func (client *ConfigClient) GetPrivateConfig(appGroupName, configName string) (s
 	}
 
 	if configName == "" {
-		configNames, err := utils.GetDefaultConfigName()
+		configNames, err := utils.GetDefaultConfigNames()
 		if err != nil {
 			return "", err
 		}
@@ -251,7 +251,7 @@ func (client *ConfigClient) GetServiceAddress(appGroupName, configName, service 
 	}
 
 	if configName == "" {
-		configNames, err := utils.GetDefaultConfigName()
+		configNames, err := utils.GetDefaultConfigNames()
 		if err != nil {
 			return nil, err
 		}
@@ -309,7 +309,7 @@ func (client *ConfigClient) PublishConfig(publishConfigRequest *configproto.Publ
 	}
 
 	if publishConfigRequest.ConfigName == "" {
-		configNames, err := utils.GetDefaultConfigName()
+		configNames, err := utils.GetDefaultConfigNames()
 		if err != nil {
 			return err
 		}
@@ -347,7 +347,7 @@ func (client *ConfigClient) ListenConfig(param config.ListenConfigParam) error {
 	}
 
 	if param.ConfigName == "" {
-		configNames, err := utils.GetDefaultConfigName()
+		configNames, err := utils.GetDefaultConfigNames()
 		if err != nil {
 			return err
 		}

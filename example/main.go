@@ -46,7 +46,7 @@ func main() {
 		fmt.Println(fmt.Sprintf("[global.init] Get app group name failed, errMessage = %s", err.Error()))
 		return
 	}
-	configNames, err := utils.GetDefaultConfigName()
+	configNames, err := utils.GetDefaultConfigNames()
 	if err != nil {
 		fmt.Println(fmt.Sprintf("[global.init] Get config names failed, errMessage = %s", err.Error()))
 		return

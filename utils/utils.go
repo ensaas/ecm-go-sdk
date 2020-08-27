@@ -29,7 +29,7 @@ func GetDefaultAppGroupName() (string, error) {
 	return appGroupName, nil
 }
 
-func GetDefaultConfigName() ([]string, error) {
+func GetDefaultConfigNames() ([]string, error) {
 	configNames := []string{}
 	maxRetryTimes := 3
 
