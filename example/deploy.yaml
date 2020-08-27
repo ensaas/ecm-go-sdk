@@ -77,14 +77,8 @@ spec:
         image: harbor-axa.wise-paas.com.cn/juanli/demo:0.0.0.4
         imagePullPolicy: Always
         env:
-        - name: ENSAASMESH_CONFIG_SERVER
-          value: 172.21.92.195
-        - name: ENSAASMESH_CONFIG_PORT
-          value: '9000'
-        - name: ENSAASMESH_APPGROUP_NAME
-          value: api-test
-        - name: ENSAASMESH_CONFIG_NAME
-          value: test
+        - name: ENSAASMESH_CONFIG_HOST
+          value: 172.21.92.195:9000
         resources:
           limits:
             cpu: 500m

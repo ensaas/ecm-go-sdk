@@ -42,7 +42,7 @@ func (config *Config) SetClientConfig(clientConfig ClientConfig) (err error) {
 		}
 	} else {
 		// if do not define the ecm server host, use env variale
-		clientConfig.EcmServerHost = os.Getenv(constants.ConfigServerEnvVar)
+		clientConfig.EcmServerHost = os.Getenv(constants.EcmServerHostEnvVar)
 	}
 
 	if clientConfig.CachePath == "" {
