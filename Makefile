@@ -6,7 +6,7 @@ CC := go
 LFLAGS := -w -s
 
 REPO := harbor.arfa.wise-paas.com/ensaasmesh/
-TAG := 0.0.0.7
+TAG := 0.0.1.0
 
 all: sdk-demo
 
