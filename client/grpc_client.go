@@ -24,7 +24,7 @@ import (
 )
 
 type GrpcClient struct {
-	address            string
+	ecmServerHost      string
 	config             config.ClientConfig
 	client             configproto.ConfigServiceClient
 	ctx                context.Context
@@ -42,14 +42,14 @@ type GrpcClient struct {
 	chanCount          int
 }
 
-func newGrpcClient(configServer, configPort string, clientConfig config.ClientConfig) (*GrpcClient, error) {
-	address := configServer + ":" + configPort
+func newGrpcClient(clientConfig config.ClientConfig) (*GrpcClient, error) {
 
+	ecmServerHost := clientConfig.EcmServerHost
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithInsecure())
 	// use custom credential
 	opts = append(opts, grpc.WithPerRPCCredentials(new(customCredential)))
-	conn, err := grpc.Dial(address, opts...)
+	conn, err := grpc.Dial(ecmServerHost, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func newGrpcClient(configServer, configPort string, clientConfig config.ClientCo
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &GrpcClient{
-		address:            address,
+		ecmServerHost:      ecmServerHost,
 		config:             clientConfig,
 		conn:               conn,
 		client:             c,
@@ -113,7 +113,7 @@ func (c *GrpcClient) reconnect() {
 		opts = append(opts, grpc.WithInsecure())
 		// use custom credential
 		opts = append(opts, grpc.WithPerRPCCredentials(new(customCredential)))
-		conn, err := grpc.Dial(c.address, opts...)
+		conn, err := grpc.Dial(c.ecmServerHost, opts...)
 		if err != nil {
 			time.Sleep(interval + time.Duration(rand.Intn(1000))*time.Millisecond)
 			interval = computeInterval(interval)

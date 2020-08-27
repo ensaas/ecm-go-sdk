@@ -7,27 +7,43 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 )
 
-type ServerConfig struct {
-	IpAddr string
-	Port   uint64
-}
-
 type ClientConfig struct {
+	EcmServerHost        string
 	CachePath            string
 	UpdateEnvWhenChanged bool
 	ListenInterval       uint64
 }
 
 type Config struct {
-	clientConfigValid  bool
-	clientConfig       ClientConfig
-	serverConfigsValid bool
-	serverConfig       ServerConfig
+	clientConfigValid bool
+	clientConfig      ClientConfig
 }
 
 func (config *Config) SetClientConfig(clientConfig ClientConfig) (err error) {
+
+	if clientConfig.EcmServerHost != "" {
+		// remove http:// or https://
+		clientConfig.EcmServerHost = strings.Replace(clientConfig.EcmServerHost, "http://", "", 1)
+		clientConfig.EcmServerHost = strings.Replace(clientConfig.EcmServerHost, "https://", "", 1)
+		// check ecm server address and port
+		ecmServerIP, ecmServerPort, err := getEcmIpAndPort(clientConfig.EcmServerHost)
+		if err != nil {
+			return err
+		}
+		if len(ecmServerIP) < 0 || ecmServerPort <= 0 || ecmServerPort > 65535 {
+			return errors.New("[config.SetClientConfig] ecm server host is invalid")
+		}
+
+		if len(ecmServerIP) == 0 {
+			return errors.New("[config.SetServerConfig] server ip address is empty")
+		}
+	} else {
+		// if do not define the ecm server host, use env variale
+		clientConfig.EcmServerHost = os.Getenv(constants.ConfigServerEnvVar)
+	}
 
 	if clientConfig.CachePath == "" {
 		clientConfig.CachePath = cache.GetCurrentPath() + string(os.PathSeparator) + "cache"
@@ -45,40 +61,6 @@ func (config *Config) SetClientConfig(clientConfig ClientConfig) (err error) {
 	return
 }
 
-func (config *Config) SetServerConfig(serverConfig ServerConfig) (err error) {
-	if len(serverConfig.IpAddr) < 0 || serverConfig.Port < 0 || serverConfig.Port > 65535 {
-		err = errors.New("[config.SetServerConfig] server config is invalid")
-		return
-	}
-
-	if len(serverConfig.IpAddr) == 0 {
-		if os.Getenv(constants.ConfigServerEnvVar) == "" {
-			err = errors.New("[config.SetServerConfig] server ip address is empty")
-			return
-		}
-		serverConfig.IpAddr = os.Getenv(constants.ConfigServerEnvVar)
-	}
-
-	if serverConfig.Port == 0 {
-		if os.Getenv(constants.ConfigPortEnvVar) == "" {
-			err = errors.New("[config.SetServerConfig] server port is empty")
-			return
-		}
-		serverConfig.Port, err = strconv.ParseUint(os.Getenv(constants.ConfigPortEnvVar), 10, 64)
-		if err != nil {
-			err = errors.New("[config.SetServerConfig] server port is invalid")
-			return
-		}
-	}
-
-	// TODO: check connect server
-
-	config.serverConfig = serverConfig
-	config.serverConfigsValid = true
-
-	return
-}
-
 func (config *Config) GetClientConfig() (clientConfig ClientConfig, err error) {
 	clientConfig = config.clientConfig
 	if !config.clientConfigValid {
@@ -87,10 +69,17 @@ func (config *Config) GetClientConfig() (clientConfig ClientConfig, err error) {
 	return
 }
 
-func (config *Config) GetServerConfig() (serverConfig ServerConfig, err error) {
-	serverConfig = config.serverConfig
-	if !config.serverConfigsValid {
-		err = errors.New("[config.GetServerConfig] invalid server configs")
+func getEcmIpAndPort(ecmServerHost string) (string, int64, error) {
+	arr := strings.Split(ecmServerHost, ":")
+	if len(arr) != 2 {
+		return "", 0, errors.New("[config.getEcmIpAndPort] The ecm server host is invalid")
 	}
-	return
+
+	port, err := strconv.ParseInt(arr[1], 10, 0)
+	if err != nil {
+		return "", 0, err
+
+	}
+
+	return arr[0], port, nil
 }

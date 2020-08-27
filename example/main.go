@@ -3,20 +3,14 @@ package main
 import (
 	"ecm-sdk-go/client"
 	"ecm-sdk-go/config"
-	"ecm-sdk-go/constants"
+	_ "ecm-sdk-go/global"
 	configproto "ecm-sdk-go/proto"
+	"ecm-sdk-go/utils"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
-)
-
-var (
-	appGroupName = os.Getenv(constants.AppGroupNameEnvVar)
-	configNames  = os.Getenv(constants.ConfigNamesEnvVar)
 )
 
 func createConfigClientTest() client.ConfigClient {
@@ -26,19 +20,7 @@ func createConfigClientTest() client.ConfigClient {
 		UpdateEnvWhenChanged: true,
 	}
 
-	port, err := strconv.ParseUint(os.Getenv(constants.ConfigPortEnvVar), 10, 0)
-	if err != nil {
-		fmt.Println("The config port of ensaas cp is invalid. errMessage = " + err.Error())
-		return client.ConfigClient{}
-	}
-
-	var serverConfigTest = config.ServerConfig{
-		IpAddr: os.Getenv(constants.ConfigServerEnvVar),
-		Port:   port,
-	}
-
 	conf := config.Config{}
-	conf.SetServerConfig(serverConfigTest)
 	conf.SetClientConfig(clientConfigTest)
 
 	client, err := client.NewConfigClient(&conf)
@@ -55,8 +37,19 @@ func main() {
 	c := createConfigClientTest()
 	defer c.DeleteConfigClient()
 
-	configNameList := strings.Split(configNames, ",")
-	for _, configNameTmp := range configNameList {
+	// get client config
+	appGroupName, err := utils.GetDefaultAppGroupName()
+	if err != nil {
+		fmt.Println(fmt.Sprintf("[global.init] Get app group name failed, errMessage = %s", err.Error()))
+		return
+	}
+	configNames, err := utils.GetDefaultConfigName()
+	if err != nil {
+		fmt.Println(fmt.Sprintf("[global.init] Get config names failed, errMessage = %s", err.Error()))
+		return
+	}
+
+	for _, configNameTmp := range configNames {
 
 		configName := strings.Trim(configNameTmp, " ")
 		content, err := c.GetConfig(appGroupName, configName)

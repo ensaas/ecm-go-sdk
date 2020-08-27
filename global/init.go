@@ -14,35 +14,28 @@ import (
 
 func init() {
 	// get client config
-	appGroupName := utils.GetDefaultAppGroupName()
-	configNames := utils.GetDefaultConfigName()
+	appGroupName, err := utils.GetDefaultAppGroupName()
+	if err != nil {
+		log.Println(fmt.Sprintf("[global.init] Get app group name failed, errMessage = %s", err.Error()))
+		return
+	}
+	configNames, err := utils.GetDefaultConfigName()
+	if err != nil {
+		log.Println(fmt.Sprintf("[global.init] Get config names failed, errMessage = %s", err.Error()))
+		return
+	}
 
-	if configNames == "" || appGroupName == "" {
-		log.Printf(fmt.Sprintf("[client.init] Warning the environment variables %s or %s is empty", constants.AppGroupNameEnvVar, constants.ConfigNamesEnvVar))
+	if len(configNames) == 0 {
+		log.Printf("[global.init] Warning the backend does not have any config name permissions")
+		return
+	}
+
+	if appGroupName == "" {
+		log.Printf("[global.init] Warning the app group name is empty")
 		return
 	}
 	clientConfig := getDefaultClientConfig()
-
-	// get server config
-	configServer := os.Getenv(constants.ConfigServerEnvVar)
-	configPort := os.Getenv(constants.ConfigPortEnvVar)
-	if configServer == "" || configPort == "" {
-		log.Printf(fmt.Sprintf("[client.init] Warning the environment variables %s or %s is empty", constants.ConfigServerEnvVar, constants.ConfigPortEnvVar))
-		return
-	}
-	port, err := strconv.ParseUint(configPort, 10, 0)
-	if err != nil {
-		log.Println("The config port invalid. errMessage = " + err.Error())
-		return
-	}
-
-	var serverConfig = config.ServerConfig{
-		IpAddr: configServer,
-		Port:   port,
-	}
-
 	conf := config.Config{}
-	conf.SetServerConfig(serverConfig)
 	conf.SetClientConfig(clientConfig)
 
 	configClient, err := client.NewConfigClient(&conf)
@@ -51,8 +44,7 @@ func init() {
 		return
 	}
 
-	configNamesList := parseConfigNames(configNames)
-	for _, configNameTmp := range configNamesList {
+	for _, configNameTmp := range configNames {
 		configName := strings.Trim(configNameTmp, " ")
 		configClient.ListenConfig(config.ListenConfigParam{
 			AppGroupName: appGroupName,
@@ -91,9 +83,4 @@ func getDefaultClientConfig() config.ClientConfig {
 	}
 
 	return clientConfig
-}
-
-func parseConfigNames(configNames string) []string {
-	arr := strings.Split(configNames, ",")
-	return arr
 }

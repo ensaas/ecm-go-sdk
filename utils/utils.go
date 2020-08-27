@@ -11,21 +11,38 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
-	"os"
 	"time"
 
 	"github.com/BurntSushi/toml"
 	"gopkg.in/yaml.v2"
 )
 
-func GetDefaultAppGroupName() string {
-	appGroupName := os.Getenv(constants.AppGroupNameEnvVar)
-	return appGroupName
+func GetDefaultAppGroupName() (string, error) {
+	maxRetryTimes := 3
+
+	backendInfo, err := getBackendInfo(maxRetryTimes)
+	if err != nil {
+		return "", err
+	}
+	appGroupName := backendInfo.AppGroupConfig.AppGroupName
+
+	return appGroupName, nil
 }
 
-func GetDefaultConfigName() string {
-	configName := os.Getenv(constants.ConfigNamesEnvVar)
-	return configName
+func GetDefaultConfigName() ([]string, error) {
+	configNames := []string{}
+	maxRetryTimes := 3
+
+	backendInfo, err := getBackendInfo(maxRetryTimes)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, configs := range backendInfo.AppGroupConfig.Configs {
+		configNames = append(configNames, configs.ConfigName)
+	}
+
+	return configNames, nil
 }
 
 func ParseBackendInfo(maxRetryTimes int) (string, string, error) {
@@ -56,6 +73,33 @@ func ParseBackendInfo(maxRetryTimes int) (string, string, error) {
 		return "", "", err
 	}
 	return backendInfo.BackendName, backendInfo.Token, nil
+}
+
+func getBackendInfo(maxRetryTimes int) (*types.BackendRegisterResult, error) {
+
+	backendInfo := &types.BackendRegisterResult{}
+
+	// wait backend register
+	var content []byte
+	var err error
+	fileName := constants.BackendRegisterInfoPath
+	for i := 0; i < maxRetryTimes; i++ {
+		content, err = ioutil.ReadFile(fileName)
+		if err != nil {
+			if i == maxRetryTimes-1 {
+				return nil, fmt.Errorf("failed to parse backend information from file:%s, err:%s! ", fileName, err.Error())
+			}
+			time.Sleep(time.Second)
+			continue
+		} else {
+			break
+		}
+	}
+
+	if err = json.Unmarshal(content, backendInfo); err != nil {
+		return nil, err
+	}
+	return backendInfo, nil
 }
 
 func ParseConfigToMap(config, format string) (map[string]interface{}, error) {
