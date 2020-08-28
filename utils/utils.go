@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -180,6 +181,15 @@ func GetKeyValueConfig(serviceConfig *configproto.Config) *types.KeyValueConfig 
 
 func GetServiceConfigKeyAddRandom(appGroupName, configName string) string {
 	return appGroupName + "_" + configName + "_" + RandomString(4)
+}
+
+func GetAppGroupNameAndConfigName(serviceConfigkey string) (string, string, error) {
+	arr := strings.Split(serviceConfigkey, "_")
+	if len(arr) < 2 {
+		return "", "", fmt.Errorf("Failed to get app group name and config name from service key")
+	}
+
+	return arr[0], arr[1], nil
 }
 
 // RandomString returns a random string with a fixed length

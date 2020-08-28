@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"math/rand"
 	"os"
@@ -148,6 +147,24 @@ func (c *GrpcClient) reconnect() {
 				if c.putConfigClient[key], err = client.PutConfig(ctx); err != nil {
 					isFailed = true
 					break
+				}
+				appGroupName, configName, err := utils.GetAppGroupNameAndConfigName(key)
+				if err == nil {
+					putConfigRequest := &configproto.PutConfigRequest{
+						AppGroupName: appGroupName,
+						ConfigName:   configName,
+					}
+					err := c.putConfigClient[key].Send(putConfigRequest)
+					if err != nil {
+						errStatus, _ := status.FromError(err)
+						if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
+							log.Printf("[client.reconnect] put send thread failed: " + err.Error())
+							continue
+						}
+						log.Printf("[client.reconnect] put send thread failed: " + err.Error())
+						isFailed = true
+						break
+					}
 				}
 			}
 		}
@@ -308,19 +325,15 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				}
 				data, err := listenConfigClient.Recv()
 				if err != nil {
-					if err == io.EOF {
-						log.Printf("[client.listenConfig] listen receive thread failed: " + err.Error())
-						close(listenStopCh)
-						return
-					}
-					errStatus, _ := status.FromError(err)
-					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
-						errStatus.Code() == codes.Canceled {
-						log.Printf("[client.listenConfig] listen receive thread failed: " + err.Error())
-						close(listenStopCh)
-						return
-					}
 					log.Printf("[client.listenConfig] listen receive thread failed: " + err.Error())
+					errStatus, _ := status.FromError(err)
+					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
+						close(listenStopCh)
+						return
+					}
+					if errStatus.Code() == codes.Internal {
+						c.reconnect()
+					}
 					time.Sleep(time.Second)
 					continue
 				}
@@ -361,8 +374,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 		c.serviceConfigMutex.RUnlock()
 		if err != nil {
 			errStatus, _ := status.FromError(err)
-			if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
-				errStatus.Code() == codes.Canceled {
+			if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
 				log.Printf("[client.listenConfig] listen send thread failed: " + err.Error())
 				return
 			}
@@ -385,7 +397,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				listenConfigClient := c.listenConfigClient[listenClientKey]
 				c.streamClientMutex.RUnlock()
 				if listenConfigClient == nil {
-					time.Sleep(time.Second)
+					t1.Reset(time.Duration(c.config.ListenInterval) * time.Second)
 					continue
 				}
 
@@ -399,8 +411,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				c.serviceConfigMutex.RUnlock()
 				if err != nil {
 					errStatus, _ := status.FromError(err)
-					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
-						errStatus.Code() == codes.Canceled {
+					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
 						log.Printf("[client.listenConfig] listen send thread failed: " + err.Error())
 						return
 					}
@@ -440,8 +451,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 		err := putConfigClient.Send(putConfigRequest)
 		if err != nil {
 			errStatus, _ := status.FromError(err)
-			if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
-				errStatus.Code() == codes.Canceled {
+			if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
 				log.Printf("[client.listenConfig] put send thread failed: " + err.Error())
 				return
 			}
@@ -477,8 +487,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				err := putConfigClient.Send(putConfigRequest)
 				if err != nil {
 					errStatus, _ := status.FromError(err)
-					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
-						errStatus.Code() == codes.Canceled {
+					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
 						log.Printf("[client.listenConfig] put send thread failed: " + err.Error())
 						return
 					}
@@ -513,19 +522,15 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 
 				data, err := putConfigClient.Recv()
 				if err != nil {
-					if err == io.EOF {
-						log.Printf("[client.listenConfig] put receive thread failed: " + err.Error())
-						close(putStopCh)
-						return
-					}
+					log.Printf("[client.listenConfig] put receive thread failed: " + err.Error())
 					errStatus, _ := status.FromError(err)
-					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
-						errStatus.Code() == codes.Canceled {
-						log.Printf("[client.listenConfig] put receive thread failed: " + err.Error())
+					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied {
 						close(putStopCh)
 						return
 					}
-					log.Printf("[client.listenconfig] receive data from put config request failed: " + err.Error())
+					if errStatus.Code() == codes.Internal {
+						c.reconnect()
+					}
 					time.Sleep(time.Second)
 					continue
 				}
