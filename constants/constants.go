@@ -3,7 +3,7 @@ package constants
 const (
 	BackendRegisterInfoPath           = "/mosn/register"
 	EnvPrefix                         = "ENSAASMESH_"
-	EcmServerHostEnvVar               = EnvPrefix + "CONFIG_HOST" // sidecar auto inject
+	EcmServerAddrEnvVar               = EnvPrefix + "CONFIG_ADDR" // sidecar auto inject
 	CachePathEnvVar                   = EnvPrefix + "CACHE_PATH"
 	UpdateEnvWhenChangedEnvVar        = EnvPrefix + "UPDATE_ENV_WHEN_CHANGED"
 	ListenIntervalEnvVar              = EnvPrefix + "LISTEN_INTERNAL"

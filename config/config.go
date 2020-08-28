@@ -11,7 +11,7 @@ import (
 )
 
 type ClientConfig struct {
-	EcmServerHost        string
+	EcmServerAddr        string
 	CachePath            string
 	UpdateEnvWhenChanged bool
 	ListenInterval       uint64
@@ -24,12 +24,12 @@ type Config struct {
 
 func (config *Config) SetClientConfig(clientConfig ClientConfig) (err error) {
 
-	if clientConfig.EcmServerHost != "" {
+	if clientConfig.EcmServerAddr != "" {
 		// remove http:// or https://
-		clientConfig.EcmServerHost = strings.Replace(clientConfig.EcmServerHost, "http://", "", 1)
-		clientConfig.EcmServerHost = strings.Replace(clientConfig.EcmServerHost, "https://", "", 1)
+		clientConfig.EcmServerAddr = strings.Replace(clientConfig.EcmServerAddr, "http://", "", 1)
+		clientConfig.EcmServerAddr = strings.Replace(clientConfig.EcmServerAddr, "https://", "", 1)
 		// check ecm server address and port
-		ecmServerIP, ecmServerPort, err := getEcmIpAndPort(clientConfig.EcmServerHost)
+		ecmServerIP, ecmServerPort, err := getEcmIpAndPort(clientConfig.EcmServerAddr)
 		if err != nil {
 			return err
 		}
@@ -42,7 +42,7 @@ func (config *Config) SetClientConfig(clientConfig ClientConfig) (err error) {
 		}
 	} else {
 		// if do not define the ecm server host, use env variale
-		clientConfig.EcmServerHost = os.Getenv(constants.EcmServerHostEnvVar)
+		clientConfig.EcmServerAddr = os.Getenv(constants.EcmServerAddrEnvVar)
 	}
 
 	if clientConfig.CachePath == "" {
@@ -69,8 +69,8 @@ func (config *Config) GetClientConfig() (clientConfig ClientConfig, err error) {
 	return
 }
 
-func getEcmIpAndPort(ecmServerHost string) (string, int64, error) {
-	arr := strings.Split(ecmServerHost, ":")
+func getEcmIpAndPort(EcmServerAddr string) (string, int64, error) {
+	arr := strings.Split(EcmServerAddr, ":")
 	if len(arr) != 2 {
 		return "", 0, errors.New("[config.getEcmIpAndPort] The ecm server host is invalid")
 	}

@@ -4,7 +4,6 @@ import (
 	"ecm-sdk-go/client"
 	"ecm-sdk-go/config"
 	"ecm-sdk-go/constants"
-	_ "ecm-sdk-go/global"
 	configproto "ecm-sdk-go/proto"
 	"ecm-sdk-go/utils"
 	"encoding/json"
@@ -20,7 +19,7 @@ func createConfigClientTest() client.ConfigClient {
 		CachePath:            "cache",
 		ListenInterval:       10,
 		UpdateEnvWhenChanged: true,
-		EcmServerHost:        os.Getenv(constants.EcmServerHostEnvVar),
+		EcmServerAddr:        os.Getenv(constants.EcmServerAddrEnvVar),
 	}
 
 	conf := config.Config{}
