@@ -289,6 +289,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 	c.listenConfigClient[listenClientKey] = listenConfigClient
 	c.streamClientMutex.Unlock()
 
+	listenStopCh := make(chan struct{})
 	go func() {
 		for {
 			select {
@@ -309,12 +310,14 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				if err != nil {
 					if err == io.EOF {
 						log.Printf("[client.listenConfig] listen receive thread failed: " + err.Error())
+						close(listenStopCh)
 						return
 					}
 					errStatus, _ := status.FromError(err)
 					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
 						errStatus.Code() == codes.Canceled {
 						log.Printf("[client.listenConfig] listen receive thread failed: " + err.Error())
+						close(listenStopCh)
 						return
 					}
 					log.Printf("[client.listenConfig] listen receive thread failed: " + err.Error())
@@ -357,10 +360,6 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 		})
 		c.serviceConfigMutex.RUnlock()
 		if err != nil {
-			if err == io.EOF {
-				log.Printf("[client.listenConfig] listen send thread failed: " + err.Error())
-				return
-			}
 			errStatus, _ := status.FromError(err)
 			if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
 				errStatus.Code() == codes.Canceled {
@@ -377,6 +376,9 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 			case <-c.listenSendChan:
 				log.Printf("[client.listenConfig] listen send thread receive graceful shutdown signal")
 				c.deleteChan <- c.chanCount
+				return
+			case <-listenStopCh:
+				log.Printf("[client.listenConfig] listen send thread receive quit")
 				return
 			case <-t1.C:
 				c.streamClientMutex.RLock()
@@ -396,10 +398,6 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				})
 				c.serviceConfigMutex.RUnlock()
 				if err != nil {
-					if err == io.EOF {
-						log.Printf("[client.listenConfig] listen send thread failed: " + err.Error())
-						return
-					}
 					errStatus, _ := status.FromError(err)
 					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
 						errStatus.Code() == codes.Canceled {
@@ -418,6 +416,8 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 		c.putSendChan = make(chan int)
 	}
 	c.chanCount++
+
+	putStopCh := make(chan struct{})
 
 	// create put config client
 	c.streamClientMutex.Lock()
@@ -439,10 +439,6 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 
 		err := putConfigClient.Send(putConfigRequest)
 		if err != nil {
-			if err == io.EOF {
-				log.Printf("[client.listenConfig] put send thread failed: " + err.Error())
-				return
-			}
 			errStatus, _ := status.FromError(err)
 			if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
 				errStatus.Code() == codes.Canceled {
@@ -461,6 +457,9 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				log.Printf("[client.listenConfig] put send thread receive graceful shutdown signal")
 				c.deleteChan <- c.chanCount
 				return
+			case <-putStopCh:
+				log.Printf("[client.listenConfig] put send thread exit")
+				return
 			case <-t1.C:
 				c.streamClientMutex.RLock()
 				putConfigClient := c.putConfigClient[listenClientKey]
@@ -477,10 +476,6 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				}
 				err := putConfigClient.Send(putConfigRequest)
 				if err != nil {
-					if err == io.EOF {
-						log.Printf("[client.listenConfig] put send thread failed: " + err.Error())
-						return
-					}
 					errStatus, _ := status.FromError(err)
 					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
 						errStatus.Code() == codes.Canceled {
@@ -520,12 +515,14 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				if err != nil {
 					if err == io.EOF {
 						log.Printf("[client.listenConfig] put receive thread failed: " + err.Error())
+						close(putStopCh)
 						return
 					}
 					errStatus, _ := status.FromError(err)
 					if errStatus.Code() == codes.NotFound || errStatus.Code() == codes.PermissionDenied ||
 						errStatus.Code() == codes.Canceled {
 						log.Printf("[client.listenConfig] put receive thread failed: " + err.Error())
+						close(putStopCh)
 						return
 					}
 					log.Printf("[client.listenconfig] receive data from put config request failed: " + err.Error())
