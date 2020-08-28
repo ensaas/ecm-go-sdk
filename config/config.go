@@ -38,11 +38,14 @@ func (config *Config) SetClientConfig(clientConfig ClientConfig) (err error) {
 		}
 
 		if len(ecmServerIP) == 0 {
-			return errors.New("[config.SetServerConfig] server ip address is empty")
+			return errors.New("[config.SetServerConfig] ecm server ip address is empty")
 		}
 	} else {
 		// if do not define the ecm server host, use env variale
 		clientConfig.EcmServerAddr = os.Getenv(constants.EcmServerAddrEnvVar)
+		if clientConfig.EcmServerAddr == "" {
+			return errors.New("[config.SetServerConfig] ecm server address is empty")
+		}
 	}
 
 	if clientConfig.CachePath == "" {
