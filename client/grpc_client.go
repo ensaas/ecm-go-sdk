@@ -378,7 +378,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				c.deleteChan <- c.chanCount
 				return
 			case <-listenStopCh:
-				log.Printf("[client.listenConfig] listen send thread receive quit")
+				log.Printf("[client.listenConfig] listen send thread quit")
 				return
 			case <-t1.C:
 				c.streamClientMutex.RLock()
@@ -458,7 +458,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 				c.deleteChan <- c.chanCount
 				return
 			case <-putStopCh:
-				log.Printf("[client.listenConfig] put send thread exit")
+				log.Printf("[client.listenConfig] put send thread quit")
 				return
 			case <-t1.C:
 				c.streamClientMutex.RLock()
