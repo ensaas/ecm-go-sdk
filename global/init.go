@@ -5,7 +5,6 @@ import (
 	"ecm-sdk-go/config"
 	"ecm-sdk-go/constants"
 	"ecm-sdk-go/utils"
-	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -16,12 +15,12 @@ func init() {
 	// get client config
 	appGroupName, err := utils.GetDefaultAppGroupName()
 	if err != nil {
-		log.Println(fmt.Sprintf("[global.init] Get app group name failed, errMessage = %s", err.Error()))
+		log.Printf("[global.init] Get app group name failed, errMessage = %s", err.Error())
 		return
 	}
 	configNames, err := utils.GetDefaultConfigNames()
 	if err != nil {
-		log.Println(fmt.Sprintf("[global.init] Get config names failed, errMessage = %s", err.Error()))
+		log.Printf("[global.init] Get config names failed, errMessage = %s", err.Error())
 		return
 	}
 
