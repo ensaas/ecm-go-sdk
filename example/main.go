@@ -33,9 +33,6 @@ func createConfigClientTest() client.ConfigClient {
 }
 
 func main() {
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-
 	c := createConfigClientTest()
 	defer c.DeleteConfigClient()
 
@@ -51,7 +48,9 @@ func main() {
 		return
 	}
 
+	wg := sync.WaitGroup{}
 	for _, configNameTmp := range configNames {
+		wg.Add(1)
 
 		configName := strings.Trim(configNameTmp, " ")
 		content, err := c.GetConfig(appGroupName, configName)
@@ -76,13 +75,15 @@ func main() {
 		fmt.Println(fmt.Sprintf("key value config of config '%s' is:", configName))
 		fmt.Println(string(keyValueBytes))
 
-		c.ListenConfig(config.ListenConfigParam{
+		if err := c.ListenConfig(config.ListenConfigParam{
 			AppGroupName: appGroupName,
 			ConfigName:   configName,
 			OnChange: func(object, key, value string) {
 				fmt.Println(fmt.Sprintf("config '%s' changed object: %s, key: %s, value: %s", configName, object, key, value))
 			},
-		})
+		}); err != nil {
+			wg.Done()
+		}
 
 		// publish config
 		publishConfig := &configproto.PublishConfigRequest{

@@ -300,6 +300,7 @@ func (c *GrpcClient) listenConfig(serviceConfig *configproto.Config, param *conf
 	listenConfigClient, err := c.client.ListenConfig(c.ctx)
 	if err != nil {
 		log.Printf(err.Error())
+		c.streamClientMutex.Unlock()
 		return
 
 	}
