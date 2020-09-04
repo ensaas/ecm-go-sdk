@@ -46,9 +46,10 @@ func GetDefaultConfigNames() ([]string, error) {
 	return configNames, nil
 }
 
-func ParseBackendInfo(maxRetryTimes int) (string, string, error) {
+func ParseBackendInfo(maxRetryTimes int) (string, string, string, error) {
 
 	backendInfo := &struct {
+		ServiceName string `json:"serviceName"`
 		BackendName string `json:"backendName"`
 		Token       string `json:"token"`
 	}{}
@@ -61,7 +62,7 @@ func ParseBackendInfo(maxRetryTimes int) (string, string, error) {
 		content, err = ioutil.ReadFile(fileName)
 		if err != nil {
 			if i == maxRetryTimes-1 {
-				return "", "", fmt.Errorf("failed to parse backend information from file:%s, err:%s! ", fileName, err.Error())
+				return "", "", "", fmt.Errorf("failed to parse backend information from file:%s, err:%s! ", fileName, err.Error())
 			}
 			time.Sleep(time.Second)
 			continue
@@ -71,9 +72,9 @@ func ParseBackendInfo(maxRetryTimes int) (string, string, error) {
 	}
 
 	if err = json.Unmarshal(content, backendInfo); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return backendInfo.BackendName, backendInfo.Token, nil
+	return backendInfo.ServiceName, backendInfo.BackendName, backendInfo.Token, nil
 }
 
 func getBackendInfo(maxRetryTimes int) (*types.BackendRegisterResult, error) {
