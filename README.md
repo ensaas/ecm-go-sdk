@@ -1,16 +1,20 @@
-# ECM sdk for go
-## Usage
+# WISE-PaaS/Config Mgmt. SDK for Go
+The **WISE-PaaS/Config Mgmt. SDK for Go** enables Go developers to easily work with [WISE-PaaS/Config Mgmt.](https://wise-paas.advantech.com/en-us/marketplace/product/advantech.wise-paas-config-mgmt) It provides functions such as obtaining source format configuration, key value configuration, listening configuration update, and publishing configuration.
 
-1. cd gopath
+## Installation
 
-2. git clone https://gitlab.wise-paas.com/WISE-PaaS-4.0-Ops/ecm-sdk-go.git
+Use `go get` to install SDK：
 
-3. cd gopath/your_project
+``` 
+go get -u https://github.com/ensaas/ecm-go-sdk
+```
 
-4. modify the go.mod of your project, add the  following two lines:
+## Example
 
-   require "ecm-sdk-go" v0.0.0
+We can run example to learn how to use SDK.
 
-   replace "ecm-sdk-go" => " gopath/ecm-sdk-go"
+- [Example](https://github.com/ensaas/ecm-go-sdk/example)
 
-   
+## Documentation
+
+You can view the user manual from the [Advantech TD website](https://docs.wise-paas.advantech.com/zh-cn/Guides_and_API_References/Cloud_Services/1611641356643696081/1611824626036225856/v1.0.3)
